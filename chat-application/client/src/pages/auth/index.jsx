@@ -74,14 +74,15 @@ const Auth = () => {
               </Button>
 
               </TabsContent>
-
+              
+             
               <TabsContent className="flex flex-col gap-5 mt-1"
               value="signup">
               <Input 
               placeholder="Email" 
               type="email"
               className="rounded-full p-6"
-              value={password} 
+              value={email} 
               onChange={(e) => setEmail(e.target.value)}
               />
               <Input 
@@ -99,7 +100,7 @@ const Auth = () => {
               onChange={(e) => setConfirmPassword(e.target.value)}
               />
                <Button className="rounded-full p-6" onClick={handleSignup}>
-                 Login
+                signup
                 </Button>
               </TabsContent>
             </Tabs>
