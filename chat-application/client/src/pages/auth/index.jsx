@@ -75,7 +75,7 @@ const Auth = () => {
 
               </TabsContent>
 
-              <TabsContent className="flex flex-col gap-5 mt-10"
+              <TabsContent className="flex flex-col gap-5 mt-1"
               value="signup">
               <Input 
               placeholder="Email" 
