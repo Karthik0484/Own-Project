@@ -81,7 +81,7 @@ const Auth = () => {
               placeholder="Email" 
               type="email"
               className="rounded-full p-6"
-              value={password} 
+              value={email} 
               onChange={(e) => setEmail(e.target.value)}
               />
               <Input 
