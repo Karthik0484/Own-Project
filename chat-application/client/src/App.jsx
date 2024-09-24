@@ -15,6 +15,7 @@ const App = () => {
       <Route path="*" element={<Navigate to="/auth" />} />
      </Routes>
     </BrowserRouter>
+    
   );
 };
 
