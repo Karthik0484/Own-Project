@@ -39,5 +39,5 @@ const userSchema = new mongoose.Schema({
 /* This Below code is going to encrypt the password*/
 
 userSchema.pre("save", async function (next) {
-    const salt =await genSalt
+    const salt = await genSalt
 });
