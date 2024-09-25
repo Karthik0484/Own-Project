@@ -7,14 +7,31 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
-import { SIGNUP_ROUTE } from "@/utils/constants";
+import { LOGIN_ROUTE, SIGNUP_ROUTE } from "@/utils/constants";
+import { useNavigate } from "react-router-dom";
 
 
 const Auth = () => { 
 
+  const navigate = useNavigate()
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+
+const validateLogin = () => {
+  if(!email.length) {
+    toast.error("Email is required.");
+    return false;
+  }
+  if(!password.length) {
+    toast.error("Password is required.");
+    return false;
+  }
+  return true;
+};
+
 
   const validateSignup = () =>{
    
@@ -24,20 +41,41 @@ const Auth = () => {
     }
     if(!password.length) {
       toast.error("Password is required.");
+      return false;
     }
     if(password !== confirmPassword){
-      toast.error("password does not match.");
+      toast.error("password and confirm password does not match.");
       return false;
     }
     return true;
   };
 
-  const handleLogin = async () => {};
+  const handleLogin = async () => {
+    if(validateLogin()) {
+      const response = await apiClient.post(
+        LOGIN_ROUTE,
+        {email,password},
+        {withCredentials: true}
+      );
+      if(response.data.user.id){
+        if(response.data.user.profileSetup) navigate('/chat');
+          else navigate("/profile");
+      }
+      console.log({ response });
+    }
+  };
 
   const handleSignup = async () => {
     if (validateSignup()) {
-      const response = await apiClient.post(SIGNUP_ROUTE,{ email,password });
-      console.log({response});    
+      const response = await apiClient.post(
+        SIGNUP_ROUTE,
+        { email,password },
+        {withCredentials: true}
+      );
+      if (response.status === 201){
+        navigate("/profile");
+      }
+      console.log({ response });    
     }
   };
 
@@ -57,7 +95,7 @@ const Auth = () => {
             </p>
           </div>
           <div className="flex items-center justify-center w-full">
-            <Tabs className="w-3/4">
+            <Tabs className="w-3/4" defaultValue="login">
               <TabsList className="bg-transparent rounded-none w-full">
                 <TabsTrigger value="login"
                 className="data-[state=active]:bg-transparent text-black 
