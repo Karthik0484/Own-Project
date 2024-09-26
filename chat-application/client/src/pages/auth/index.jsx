@@ -1,5 +1,5 @@
 import { TabsContent,  TabsTrigger } from "@radix-ui/react-tabs";
-import Victory from "../../assets/Victory.png";
+import login from "../../assets/login.jpg";
 import Background from "../../assets/Background.png";
 import { Tabs, TabsList } from "@/components/ui/tabs";
 import { useState } from "react";
@@ -9,11 +9,13 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { LOGIN_ROUTE, SIGNUP_ROUTE } from "@/utils/constants";
 import { useNavigate } from "react-router-dom";
+import { useAppStore } from "@/store";
 
 
 const Auth = () => { 
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const {setUserInfo} = useAppStore();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -58,6 +60,7 @@ const validateLogin = () => {
         {withCredentials: true}
       );
       if(response.data.user.id){
+        setUserInfo(response.data.user);
         if(response.data.user.profileSetup) navigate('/chat');
           else navigate("/profile");
       }
@@ -73,6 +76,7 @@ const validateLogin = () => {
         {withCredentials: true}
       );
       if (response.status === 201){
+        setUserInfo(response.data.user);
         navigate("/profile");
       }
       console.log({ response });    
@@ -87,11 +91,10 @@ const validateLogin = () => {
         <div className="flex flex-col gap-10 items-center justify-center">
           <div className="flex items-center justify-center flex-col">
             <div className="flex items-center justify-center">
-             <h1 className="text-5xl font-bold md:text-6xl">Welcome</h1>
-             <img src={Victory} alt="Victory Emoji" className="h-[100px]" />
+             <h1 className="text-5xl font-bold md:text-6xl"> Connectify</h1>
+             <img src={login} alt="Victory Emoji" className="h-[100px] rounded-full" />
             </div>
-            <p className="font-medium text-center">Fill in the details to get 
-              started with the Lovely chat app.
+            <p className="font-medium text-center">Login To Start Exploring.
             </p>
           </div>
           <div className="flex items-center justify-center w-full">
