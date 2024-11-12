@@ -117,8 +117,8 @@ const validateLogin = () => {
                   Signup
                 </TabsTrigger>
               </TabsList>
-              <TabsContent className="flex flex-col gap-5 mt-10" value="login">
 
+              <TabsContent className="flex flex-col gap-5 mt-10" value="login">
               <Input 
               placeholder="Email" 
               type="email"
