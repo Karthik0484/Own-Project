@@ -2,7 +2,7 @@ import { TabsContent,  TabsTrigger } from "@radix-ui/react-tabs";
 import login from "../../assets/login.jpg";
 import Background from "../../assets/Background.png";
 import { Tabs, TabsList } from "@/components/ui/tabs";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -21,6 +21,23 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // My code
+
+  useEffect(() => {
+    setEmail(localStorage.getItem("email") || "");
+    setPassword(localStorage.getItem("password") || "");
+    setConfirmPassword(localStorage.getItem("confirmPassword") || "");
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("email", email);
+  }, [email]);
+  
+  useEffect(() => {
+    localStorage.setItem("password", password);
+  }, [password]);
+
+ // MY code
 
 const validateLogin = () => {
   if(!email.length) {
@@ -61,6 +78,13 @@ const validateLogin = () => {
       );
       if(response.data.user.id){
         setUserInfo(response.data.user);
+
+
+        // MY code Clear localStorage on successful login
+        localStorage.removeItem("email");
+        localStorage.removeItem("password");
+
+
         if(response.data.user.profileSetup) navigate('/chat');
           else navigate("/profile");
       }
@@ -77,6 +101,12 @@ const validateLogin = () => {
       );
       if (response.status === 201){
         setUserInfo(response.data.user);
+
+          // MY code Clear localStorage on successful login
+          localStorage.removeItem("email");
+          localStorage.removeItem("password");
+          localStorage.removeItem("confirmPassword");
+
         navigate("/profile");
       }
       console.log({ response });    
