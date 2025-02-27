@@ -22,6 +22,10 @@ const setupSocket = (server) => {
     }
  };
 
+ const sendMessage = async( message ) => {
+
+ }
+
  io.on("connection",(socket) => {
     const userId = socket.handshake.query.userId;
 
@@ -32,6 +36,7 @@ const setupSocket = (server) => {
         console.log("User ID not provided during connection.")
     }
 
+    socket.on("sendMessage",sendMessage)
     socket.on("disconnect",() =>disconnect(socket));
 
  });
