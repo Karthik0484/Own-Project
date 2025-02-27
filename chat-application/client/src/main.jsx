@@ -7,7 +7,7 @@ import './index.css'
 import { Toaster } from 'sonner'
 import { SocketProvider } from './context/SocketContext.jsx'
 
-createRoot(document.getElementById('root')).render(
+ReactDOM.createRoot(document.getElementById("root")).render(
   <SocketProvider>
     <App />
     <Toaster closeButton />
