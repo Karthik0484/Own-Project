@@ -27,7 +27,7 @@ import { useAppStore } from "@/store";
 
 const NewDM = () => {
 
-    const { setSelectedChatType, setSelectedChatData} = useAppStore();
+    const { setSelectedChatType, setSelectedChatData, loadMessages } = useAppStore();
 
     const [openNewContactModal, setOpenNewContactModal] = useState(false);
 
@@ -51,11 +51,14 @@ const NewDM = () => {
       }
     };
 
-    const selectNewContact = (contact) => {
+    const selectNewContact = async (contact) => {
       setOpenNewContactModal(false);
-      setSelectedChatType(contact);
+      setSelectedChatType("contact");
       setSelectedChatData(contact);
       setSearchedContacts([]);
+      
+      // Load existing messages
+      await loadMessages(contact._id);
     };
 
   return (
@@ -103,7 +106,7 @@ const NewDM = () => {
                   <AvatarImage 
                   src={`${ HOST }/${ contact.image }`} 
                   alt="profile" 
-                  className="object-cover w-full h-full bg-black"
+                  className="object-cover w-full h-full bg-black rounded-full"
                   /> 
                 ) : ( 
                   <div  className= {`uppercase h-12 w-12  text-lg border-[1px] flex items-center justify-center rounded-full  ${getColor(contact.color)}`}>

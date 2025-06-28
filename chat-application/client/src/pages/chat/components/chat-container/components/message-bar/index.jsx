@@ -1,11 +1,17 @@
+import { useSocket } from "@/context/SocketContext";
+import { useAppStore } from "@/store";
+import { Content } from "@radix-ui/react-dialog";
 import EmojiPicker from "emoji-picker-react";
 import { useEffect, useRef, useState } from "react";
 import { GrAttachment } from "react-icons/gr"
 import { IoSend } from "react-icons/io5";
 import { RiEmojiStickerLine } from "react-icons/ri";
+import { Socket } from "socket.io-client";
 
 const MessageBar = () => {
     const emojiRef = useRef();
+    const socket = useSocket();
+    const {selectedChatType,selectedChatData,userInfo} =useAppStore();
     const [message, setMessage] = useState("");
     const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
@@ -19,13 +25,57 @@ const MessageBar = () => {
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    },[emojiRef]);
+    }, [emojiRef]);
+
+    useEffect(() => {
+        console.log("MessageBar - selectedChatType changed:", selectedChatType);
+        console.log("MessageBar - selectedChatData changed:", selectedChatData);
+    }, [selectedChatType, selectedChatData]);
 
     const handleAddEmoji = (emoji) => {
         setMessage((msg) => msg + emoji.emoji);
     };
 
-    const handleSendMessage = async() => {};
+    const handleSendMessage = async() => {
+      console.log("handleSendMessage called");
+      console.log("selectedChatType:", selectedChatType);
+      console.log("selectedChatData:", selectedChatData);
+      console.log("userInfo:", userInfo);
+      console.log("socket:", socket);
+      console.log("message:", message);
+
+      if (!message.trim()) {
+        console.log("Message is empty, not sending");
+        return;
+      }
+
+      if (!socket) {
+        console.error("Socket is not connected");
+        return;
+      }
+
+      if(selectedChatType === "contact"){
+        const messageData = {
+          sender: userInfo.id,
+          content: message,
+          recipient: selectedChatData._id,
+          messageType: "text",
+          fileUrl: undefined,
+        };
+        
+        console.log("Emitting sendMessage with data:", messageData);
+        
+        try {
+          socket.emit("sendMessage", messageData);
+          console.log("Message sent successfully");
+          setMessage(""); // Clear the message input
+        } catch (error) {
+          console.error("Error sending message:", error);
+        }
+      } else {
+        console.log("selectedChatType is not 'contact':", selectedChatType);
+      }
+    };
 
   return (
     <div className="h-[10vh] bg-[#1c1d25] flex justify-center items-center px-8 mb-6 gap-6">

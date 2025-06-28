@@ -35,7 +35,7 @@ const ChatHeader = () => {
             <div>
               {
                 selectedChatType === "contact" && selectedChatData.firstName 
-                ? `${contact.firstName} ${contact.lastName}`
+                ? `${selectedChatData.firstName} ${selectedChatData.lastName}`
                 : selectedChatData.email
               }
             </div>

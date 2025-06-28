@@ -1,34 +1,48 @@
 import User from "../models/UserModel.js";
-
+import Message from "../models/MessagesModel.js";
 
 export const searchContacts = async (request, response, next) => {
-    try{
-    const {searchTerm} = request.body;
+    try {
+        const { searchTerm } = request.body;
+        const userId = request.userId;
 
-    if(searchTerm === undefined || searchTerm === null){
-        return response.status(400).send("searchTerm is required.");
+        const contacts = await User.find({
+            $and: [
+                { _id: { $ne: userId } },
+                {
+                    $or: [
+                        { email: { $regex: searchTerm, $options: "i" } },
+                        { firstName: { $regex: searchTerm, $options: "i" } },
+                        { lastName: { $regex: searchTerm, $options: "i" } },
+                    ],
+                },
+            ],
+        }).select("id email firstName lastName image color");
+
+        return response.status(200).json({ contacts });
+    } catch (error) {
+        console.log({ error });
+        return response.status(500).send("Internal Server Error");
     }
+};
 
-    const sanitizedSearchTerm = searchTerm.replace(
-        /[.*+?^${}|[\]\\]/g,"\\$&"
-    );
+export const getMessages = async (request, response, next) => {
+    try {
+        const { recipientId } = request.params;
+        const userId = request.userId;
 
-    const regex = new RegExp(sanitizedSearchTerm, "i");
+        const messages = await Message.find({
+            $or: [
+                { sender: userId, recipient: recipientId },
+                { sender: recipientId, recipient: userId }
+            ]
+        })
+        .populate("sender", "id email firstName lastName image color")
+        .populate("recipient", "id email firstName lastName image color")
+        .sort({ timestamp: 1 });
 
-
-    // To Exclude Current loggedin User in search bar.
-    const contacts = await User.find({
-        $and: [{ _id: { $ne: request.userId } },
-            {
-                $or: [{ firstName: regex }, {lastName: regex}, { email: regex }],
-            },
-        ],
-    });
-
-    return response.status(200).json({ contacts });
-
-    return response.status(200).send("Logout successfull."); 
-  } catch(error) {
+        return response.status(200).json({ messages });
+    } catch (error) {
         console.log({ error });
         return response.status(500).send("Internal Server Error");
     }

@@ -18,7 +18,7 @@ const messageSchema = new mongoose.Schema({
     },
     content: {
         type: String,
-        required:function() {
+        required: function() {
             return this.messageType === "text";
         },
     },
@@ -34,6 +34,6 @@ const messageSchema = new mongoose.Schema({
     },
 });
 
-const Message = mongoose.model("Messages",messageSchema);
+const Message = mongoose.model("Messages", messageSchema);
 
 export default Message;
