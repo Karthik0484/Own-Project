@@ -11,9 +11,11 @@ import { Socket } from "socket.io-client";
 const MessageBar = () => {
     const emojiRef = useRef();
     const socket = useSocket();
-    const {selectedChatType,selectedChatData,userInfo} =useAppStore();
+    const {selectedChatType,selectedChatData,userInfo, addConversation, onlineUsers, unreadCounts} =useAppStore();
     const [message, setMessage] = useState("");
     const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+    const [isTyping, setIsTyping] = useState(false);
+    const typingTimeoutRef = useRef(null);
 
     useEffect(() => {
         function handleClickOutside(event) {
@@ -32,6 +34,57 @@ const MessageBar = () => {
         console.log("MessageBar - selectedChatData changed:", selectedChatData);
     }, [selectedChatType, selectedChatData]);
 
+    useEffect(() => {
+        console.log("MessageBar - socket changed:", socket);
+        if (socket) {
+            console.log("Socket connected:", socket.connected);
+            console.log("Socket ID:", socket.id);
+        }
+    }, [socket]);
+
+    // Handle typing indicator
+    useEffect(() => {
+        if (!socket || !selectedChatData?._id) return;
+
+        if (message.trim()) {
+            if (!isTyping) {
+                setIsTyping(true);
+                socket.emit("typing", {
+                    recipient: selectedChatData._id,
+                    isTyping: true
+                });
+            }
+
+            // Clear existing timeout
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+
+            // Set new timeout to stop typing indicator
+            typingTimeoutRef.current = setTimeout(() => {
+                setIsTyping(false);
+                socket.emit("typing", {
+                    recipient: selectedChatData._id,
+                    isTyping: false
+                });
+            }, 1000);
+        } else {
+            if (isTyping) {
+                setIsTyping(false);
+                socket.emit("typing", {
+                    recipient: selectedChatData._id,
+                    isTyping: false
+                });
+            }
+        }
+
+        return () => {
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+        };
+    }, [message, socket, selectedChatData, isTyping]);
+
     const handleAddEmoji = (emoji) => {
         setMessage((msg) => msg + emoji.emoji);
     };
@@ -42,6 +95,8 @@ const MessageBar = () => {
       console.log("selectedChatData:", selectedChatData);
       console.log("userInfo:", userInfo);
       console.log("socket:", socket);
+      console.log("socket type:", typeof socket);
+      console.log("socket.emit:", socket?.emit);
       console.log("message:", message);
 
       if (!message.trim()) {
@@ -50,7 +105,13 @@ const MessageBar = () => {
       }
 
       if (!socket) {
-        console.error("Socket is not connected");
+        console.error("Socket is not connected - socket is null/undefined");
+        return;
+      }
+
+      if (!socket.emit || typeof socket.emit !== 'function') {
+        console.error("Socket emit method is not available or not a function");
+        console.error("Socket object:", socket);
         return;
       }
 
@@ -68,6 +129,28 @@ const MessageBar = () => {
         try {
           socket.emit("sendMessage", messageData);
           console.log("Message sent successfully");
+          
+          // Stop typing indicator
+          setIsTyping(false);
+          socket.emit("typing", {
+            recipient: selectedChatData._id,
+            isTyping: false
+          });
+          
+          // Add conversation to the list immediately for better UX
+          const conversation = {
+            _id: selectedChatData._id,
+            firstName: selectedChatData.firstName,
+            lastName: selectedChatData.lastName,
+            image: selectedChatData.image,
+            color: selectedChatData.color,
+            lastSeen: selectedChatData.lastSeen,
+            lastMessageText: message,
+            lastMessageAt: new Date(),
+            lastMessageType: "text",
+          };
+          addConversation(conversation);
+          
           setMessage(""); // Clear the message input
         } catch (error) {
           console.error("Error sending message:", error);
@@ -84,6 +167,11 @@ const MessageBar = () => {
               placeholder="Enter-Message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleSendMessage();
+                }
+              }}
             />
             <button className="text-neutral-500 focus:border-none focus:outline-none focus:text-white duration-300 transition-all">
                 <GrAttachment className="text-2xl "/>

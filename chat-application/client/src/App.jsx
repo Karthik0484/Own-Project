@@ -23,9 +23,13 @@ const AuthRoute = ({children}) =>{
 };
 
 const App = () => {
-  const { userInfo, setUserInfo } = useAppStore();
+  const { userInfo, setUserInfo, initializeAuth } = useAppStore();
   const [loading, setloading] = useState(true);
   
+  useEffect(() =>{
+    initializeAuth(); // <-- Rehydrate from localStorage on app load
+  }, [initializeAuth]);
+
   useEffect(() =>{
     const getUserData = async() =>{
       try{
@@ -75,6 +79,14 @@ const App = () => {
         <Chat />
        </PrivateRoute> 
        }
+       />
+      <Route 
+       path="/chat/:contactId"
+        element={ 
+        <PrivateRoute>
+         <Chat />
+        </PrivateRoute> 
+        }
        />
       <Route 
        path="/profile"

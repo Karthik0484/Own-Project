@@ -1,4 +1,4 @@
-export const HOST = import.meta.env.VITE_SERVER_URL;
+export const HOST = import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
 
 export const AUTH_ROUTES = "api/auth";
 export const SIGNUP_ROUTE = `${AUTH_ROUTES}/signup`;
@@ -11,4 +11,9 @@ export const LOGOUT_ROUTE = `${AUTH_ROUTES}/logout`;
 
 export const CONTACTS_ROUTES = 'api/contacts';
 export const SEARCH_CONTACTS_ROUTES = `${CONTACTS_ROUTES}/search`;
-export const GET_MESSAGES_ROUTE = `${CONTACTS_ROUTES}/messages`;
+
+export const GET_DM_CONTACTS_ROUTES = `${CONTACTS_ROUTES}/get-contacts-for-dm`;
+
+export const MESSAGES_ROUTES = "/api/messages";
+export const GET_MESSAGES_ROUTE = `${MESSAGES_ROUTES}/get-messages`;
+export const GET_CONVERSATIONS_ROUTE = `${MESSAGES_ROUTES}/get-conversations`;

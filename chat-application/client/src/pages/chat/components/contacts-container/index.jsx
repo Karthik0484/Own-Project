@@ -1,24 +1,77 @@
+import { useEffect } from "react";
 import NewDM from "./components/new-dm";
 import ProfileInfo from "./components/profile-info";
+import { useAppStore } from "@/store";
+import ContactList from "@/components/contact-list";
+import { useSocket } from "@/context/SocketContext";
 
 const ContactsContainer = () => {
-  return( <div className="relative md:w-[35vw] lg:w-[30vw] xl:w-[20vw] bg-[#1b1c24] border-r-2 border-[#2f303b] w-full">
-  <div className="pt-3">
-    <Logo />
-  </div>
-  <div className="my-5">
-    <div className="flex items-center justify-between pr-10">
-      <Title text="Direct Messages"/>
-      <NewDM />
+  const { conversations, loadConversations, addConversation } = useAppStore();
+  const socket = useSocket();
+
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
+
+  useEffect(() => {
+    if (socket) {
+      const handleRecieveMessage = (message) => {
+        // When a new message is received, update the conversation
+        const conversation = {
+          _id: message.sender._id === useAppStore.getState().userInfo?.id 
+            ? message.recipient._id 
+            : message.sender._id,
+          firstName: message.sender._id === useAppStore.getState().userInfo?.id 
+            ? message.recipient.firstName 
+            : message.sender.firstName,
+          lastName: message.sender._id === useAppStore.getState().userInfo?.id 
+            ? message.recipient.lastName 
+            : message.sender.lastName,
+          image: message.sender._id === useAppStore.getState().userInfo?.id 
+            ? message.recipient.image 
+            : message.sender.image,
+          color: message.sender._id === useAppStore.getState().userInfo?.id 
+            ? message.recipient.color 
+            : message.sender.color,
+          lastSeen: message.sender._id === useAppStore.getState().userInfo?.id 
+            ? message.recipient.lastSeen 
+            : message.sender.lastSeen,
+          lastMessageText: message.content,
+          lastMessageAt: message.timestamp,
+          lastMessageType: message.messageType,
+        };
+        addConversation(conversation);
+      };
+
+      socket.on("recieveMessage", handleRecieveMessage);
+
+      return () => {
+        socket.off("recieveMessage", handleRecieveMessage);
+      };
+    }
+  }, [socket, addConversation]);
+
+  return (
+    <div className="relative md:w-[35vw] lg:w-[30vw] xl:w-[20vw] bg-[#1b1c24] border-r-2 border-[#2f303b] w-full">
+      <div className="pt-3">
+        <Logo />
+      </div>
+      <div className="my-5">
+        <div className="flex items-center justify-between pr-10">
+          <Title text="Direct Messages" />
+          <NewDM />
+        </div>
+        <div className="max-h-[38vh] overflow-y-auto scrollbar-hidden">
+          <ContactList conversations={conversations} />
+        </div>
+      </div>
+      <div className="my-5">
+        <div className="flex items-center justify-between pr-10">
+          <Title text="Channels" />
+        </div>
+      </div>
+      <ProfileInfo />
     </div>
-  </div>
-  <div className="my-5">
-    <div className="flex items-center justify-between pr-10">
-      <Title text="Channels"/>
-    </div>
-  </div>
-  <ProfileInfo />
-  </div>
   );
 };
 

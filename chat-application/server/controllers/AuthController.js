@@ -15,16 +15,27 @@ const createToken = (email,userId) => {
 
 export const signup = async (request, response, next) => {
     try{
+        console.log("Signup request received:", request.body);
         const{ email,password } = request.body;
         if(!email || !password){
+            console.log("Validation failed: Email or password missing.");
             return response.status(400).send("Email and Password is required.")
         }
-    const user = await User.create({ email,password }); 
-    response.cookie("jwt", createToken(email,user.id), {
+    console.log("Creating user...");
+    const user = await User.create({ email,password });
+    console.log("User created successfully:", user);
+    
+    console.log("Creating token...");
+    const token = createToken(email,user.id);
+    console.log("Token created:", token);
+
+    console.log("Setting cookie...");
+    response.cookie("jwt", token, {
         maxAge,
-        secure: true,
-        sameSite: "None",
+        secure: false,
+        sameSite: "Lax",
     });
+    console.log("Cookie set. Sending response.");
     return response.status(201).json({
     user:{
         id: user.id,
@@ -35,7 +46,7 @@ export const signup = async (request, response, next) => {
 
   }
     catch(error) {
-        console.log({ error });
+        console.error("Error during signup:", error);
         return response.status(500).send("Internal Server Error");
     }
 };
@@ -59,8 +70,8 @@ export const login =   async (request, response, next) => {
 
     response.cookie("jwt", createToken(email, user.id), {
         maxAge,
-        secure: true,
-        sameSite: "None",
+        secure: false,
+        sameSite: "Lax",
     });
     return response.status(200).json({
     user:{
@@ -197,7 +208,7 @@ export const removeProfileImage = async (request, response, next) => {
 
 export const logout = async (request, response, next) => {
     try{
-    response.cookie("jwt","",{maxAge: 1, secure: true, sameSite: "None"});
+    response.cookie("jwt","",{maxAge: 1, secure: false, sameSite: "Lax"});
     return response.status(200).send("Logout successfull."); 
   } catch(error) {
         console.log({ error });

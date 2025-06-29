@@ -4,6 +4,7 @@ import { Avatar, AvatarImage } from "@radix-ui/react-avatar";
 import { getColor } from "@/lib/utils";
 import { useEffect, useRef } from "react";
 import moment from "moment";
+import { FaCheck } from 'react-icons/fa';
 
 const MessageContainer = () => {
 
@@ -63,7 +64,9 @@ const renderMessages = () => {
       {selectedChatMessages && selectedChatMessages.map((message, index) => {
         const isOwnMessage = message.sender === userInfo.id || message.sender._id === userInfo.id;
         const sender = message.sender || {};
-        
+        const avatarContent = isOwnMessage
+          ? (message.read ? <FaCheck className="text-blue-500 text-lg" title="Read" /> : (sender.firstName ? sender.firstName[0].toUpperCase() : sender.email ? sender.email[0].toUpperCase() : '?'))
+          : (sender.firstName ? sender.firstName[0].toUpperCase() : sender.email ? sender.email[0].toUpperCase() : '?');
         return (
           <div
             key={index}
@@ -80,9 +83,7 @@ const renderMessages = () => {
                     />
                   ) : (
                     <div className={`uppercase h-8 w-8 text-sm border-[1px] flex items-center justify-center rounded-full ${getColor(sender.color)}`}>
-                      {sender.firstName
-                        ? sender.firstName.split("").shift()
-                        : sender.email ? sender.email.split("").shift() : "?"}
+                      {avatarContent}
                     </div>
                   )}
                 </Avatar>
@@ -94,7 +95,9 @@ const renderMessages = () => {
                     : 'bg-[#2a2b33] text-white'
                 }`}
               >
-                <p className="text-sm">{message.content}</p>
+                <p className="text-sm flex items-center gap-2">
+                  {message.content}
+                </p>
                 <p className="text-xs opacity-70 mt-1">
                   {new Date(message.timestamp).toLocaleTimeString([], {
                     hour: '2-digit',
@@ -106,6 +109,7 @@ const renderMessages = () => {
           </div>
         );
       })}
+      <div ref={scrollRef} />
     </div>
   );
 };
