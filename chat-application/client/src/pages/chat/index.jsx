@@ -64,7 +64,6 @@ const Chat = () => {
     if (contactId) {
       let conversation = conversations.find((c) => c._id === contactId);
       if (!conversation) {
-        // Optionally fetch user profile if not found in conversations
         conversation = {
           _id: contactId,
           firstName: '',
@@ -74,8 +73,11 @@ const Chat = () => {
           lastSeen: '',
         };
       }
-      setSelectedChatData(conversation);
-      setSelectedChatType("contact");
+      // Only update store if not already set to avoid flicker
+      if (!selectedChatData || selectedChatData._id !== contactId) {
+        setSelectedChatData(conversation);
+        setSelectedChatType("contact");
+      }
       getMessages();
     } else {
       setSelectedChatData(undefined);
@@ -90,16 +92,17 @@ const Chat = () => {
     setSelectedChatType,
     userInfo,
     socket,
+    selectedChatData,
   ]);
 
   return (
     <div className="flex h-[100vh] text-white overflow-hidden">
       <ContactsContainer/>
       {
-        selectedChatData === undefined ? (
-        <EmptyChatContainer />
-        ) : (
+        contactId && selectedChatData && selectedChatData._id === contactId ? (
           <ChatContainer />
+        ) : (
+          <EmptyChatContainer />
         )
       }
     </div>

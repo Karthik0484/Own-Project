@@ -23,11 +23,12 @@ import { Contact } from "lucide-react";
 import { Avatar, AvatarImage } from "@radix-ui/react-avatar";
 import { getColor } from "@/lib/utils";
 import { useAppStore } from "@/store";
+import { useNavigate } from 'react-router-dom';
 
 
 const NewDM = () => {
 
-    const { setSelectedChatType, setSelectedChatData, loadMessages } = useAppStore();
+    const { setSelectedChatType, setSelectedChatData, loadMessages, conversations, addConversation } = useAppStore();
 
     const [openNewContactModal, setOpenNewContactModal] = useState(false);
 
@@ -51,14 +52,34 @@ const NewDM = () => {
       }
     };
 
+    const navigate = useNavigate();
+
     const selectNewContact = async (contact) => {
       setOpenNewContactModal(false);
       setSelectedChatType("contact");
       setSelectedChatData(contact);
       setSearchedContacts([]);
-      
+
+      // Add to contact list if not already present
+      if (!conversations.some(c => c._id === contact._id)) {
+        addConversation({
+          _id: contact._id,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          image: contact.image,
+          color: contact.color,
+          lastSeen: contact.lastSeen,
+          lastMessageText: '',
+          lastMessageAt: '',
+          lastMessageType: '',
+        });
+      }
+
       // Load existing messages
       await loadMessages(contact._id);
+
+      // Navigate to the selected user's chat page
+      navigate(`/chat/${contact._id}`);
     };
 
   return (
