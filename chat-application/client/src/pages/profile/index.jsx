@@ -30,6 +30,8 @@ const Profile = () => {
     }
     if(userInfo.image){
       setImage(`${HOST}/${userInfo.image}`);
+    } else {
+      setImage(null);
     }
   },[userInfo]);
 
@@ -126,18 +128,20 @@ const Profile = () => {
               <Avatar className="h-32 w-32 md:w-48 md:h-48 rounded-full overflow-hidden ">
                 {
                   image ? ( 
-                  <AvatarImage 
-                  src={image} 
-                  alt="profile" 
-                  className="object-cover w-full h-full bg-black"
-                  /> 
-                ) : ( 
-                  <div  className= {`uppercase h-32 w-32 md:w-48 md:h-48 text-5xl border-[1px] flex items-center justify-center rounded-full  ${getColor(selectedColor)}`}>
-                   { firstName 
-                    ? firstName.split("").shift() 
-                    :  userInfo.email.split("").shift()}
-                  </div>
-                )}
+                    <AvatarImage 
+                      src={image} 
+                      alt="profile" 
+                      className="object-cover w-full h-full bg-black"
+                      onError={() => setImage(null)}
+                    /> 
+                  ) : ( 
+                    <div  className= {`uppercase h-32 w-32 md:w-48 md:h-48 text-5xl border-[1px] flex items-center justify-center rounded-full  ${getColor(selectedColor)}`}>
+                      { firstName 
+                        ? firstName.split("").shift() 
+                        :  userInfo.email.split("").shift()}
+                    </div>
+                  )
+                }
               </Avatar>
                 {
                   hovered && ( 

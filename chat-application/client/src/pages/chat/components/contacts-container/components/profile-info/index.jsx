@@ -38,18 +38,20 @@ const ProfileInfo = () => {
             <Avatar className="h-12 w-12  rounded-full overflow-hidden ">
                 {
                   userInfo.image ? ( 
-                  <AvatarImage 
-                  src={`${ HOST }/${ userInfo.image }`} 
-                  alt="profile" 
-                  className="object-cover w-full h-full bg-black"
-                  /> 
-                ) : ( 
-                  <div  className= {`uppercase h-12 w-12  text-lg border-[1px] flex items-center justify-center rounded-full  ${getColor(userInfo.color)}`}>
-                   { userInfo.firstName 
-                    ? userInfo.firstName.split("").shift() 
-                    : userInfo.email.split("").shift()}
-                  </div>
-                )}
+                    <AvatarImage 
+                      src={`${ HOST }/${ userInfo.image }`} 
+                      alt="profile" 
+                      className="object-cover w-full h-full bg-black"
+                      onError={(e) => { e.target.onerror = null; e.target.src = ""; }}
+                    /> 
+                  ) : ( 
+                    <div  className= {`uppercase h-12 w-12  text-lg border-[1px] flex items-center justify-center rounded-full  ${getColor(userInfo.color)}`}>
+                      { userInfo.firstName 
+                        ? userInfo.firstName.split("").shift() 
+                        : userInfo.email.split("").shift()}
+                    </div>
+                  )
+                }
               </Avatar>
             </div>
             <div>

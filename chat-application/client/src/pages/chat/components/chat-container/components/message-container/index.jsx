@@ -2,7 +2,7 @@ import { useAppStore } from "@/store";
 import { HOST,GET_MESSAGES_ROUTE } from "@/utils/constants";
 import { Avatar, AvatarImage } from "@radix-ui/react-avatar";
 import { getColor } from "@/lib/utils";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import moment from "moment";
 import { FaCheck } from 'react-icons/fa';
 import { apiClient } from "@/lib/api-client";
@@ -11,10 +11,13 @@ import { MdFolderZip } from 'react-icons/md';
 const MessageContainer = () => {
 
   const scrollRef = useRef();
+  const containerRef = useRef();
+  const [isAutoScroll, setIsAutoScroll] = useState(true);
   const { selectedChatType, selectedChatData, userInfo, selectedChatMessages ,setSelectedChatMessages} =
        useAppStore();
 
-  useEffect (() => {
+  // Fetch messages on chat change
+  useEffect(() => {
     const getMessages = async () => {
       try {
         const response = await apiClient.get(
@@ -28,13 +31,37 @@ const MessageContainer = () => {
         console.error("Failed to fetch messages:", error);
       }
     };
-    if (selectedChatData._id) {
-      if (selectedChatType === "contact") getMessages();
+    if (selectedChatData._id && selectedChatType === "contact") {
+      getMessages();
     }
-     if (scrollRef.current) {
-              scrollRef.current.scrollIntoView({behavior: "smooth" });
-      }
-}, [selectedChatData,selectedChatType,selectedChatMessages]);
+    // Reset auto-scroll on chat change
+    setIsAutoScroll(true);
+  }, [selectedChatData, selectedChatType, setSelectedChatMessages]);
+
+  // Smart auto-scroll on new messages
+  useEffect(() => {
+    if (isAutoScroll && scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [selectedChatMessages, isAutoScroll]);
+
+  // Detect user scroll position
+  const handleScroll = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const threshold = 80; // px
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+    setIsAutoScroll(atBottom);
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.addEventListener("scroll", handleScroll);
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [handleScroll]);
 
 const checkIfImage = (filePath) => {
   const imageRegex = 
@@ -117,11 +144,15 @@ const renderMessages = () => {
    </div>
 );
 
-return (
-    <div className="flex-1 overflow-y-auto scrollbar-hidden p-4 px-8 md:w-[60vw] lg:w-[70vw] xl:w-[80vw] w-full">
+  return (
+    <div
+      ref={containerRef}
+      className="flex-1 overflow-y-auto scrollbar-hidden p-4 px-8 md:w-[60vw] lg:w-[70vw] xl:w-[80vw] w-full"
+      style={{ position: "relative" }}
+    >
       {renderMessages()}
       <div ref={scrollRef} />
-      </div>
+    </div>
   );
 }
 

@@ -160,13 +160,19 @@ export const addProfileImage = async (request, response, next) => {
         }
 
         const date = Date.now();
-        let fileName = `uploads/profiles${date}${request.file.originalname}`;
-        renameSync(request.file.path,fileName);
+
+        // Ensure unique filename and correct path
+        const fileName = `uploads/profiles/${date}_${request.file.originalname}`;
+        renameSync(request.file.path, fileName);
+
+        // Store only the relative path for frontend use
+        const relativePath = `profiles/${date}_${request.file.originalname}`;
+
 
         const updatedUser = await User.findByIdAndUpdate(
             request.userId,
-            {image:fileName},
-            {new: true , runValidators: true}
+            { image: relativePath },
+            { new: true, runValidators: true }
         );
 
 

@@ -33,15 +33,16 @@ const ChatHeader = () => {
             <Avatar className="h-12 w-12  rounded-full overflow-hidden ">
               {avatarUrl ? (
                 <img
-                  src={avatarUrl}
+                  src={`${HOST}/${avatarUrl}`}
                   alt="profile"
                   className="object-cover w-full h-full bg-black"
+                  onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.parentNode.querySelector('.avatar-fallback').style.display = 'flex'; }}
                 />
-              ) : (
-                <div className={`uppercase h-12 w-12 text-lg border-[1px] flex items-center justify-center rounded-full ${getColor(selectedChatData.color)}`}>
-                  {avatarInitial}
-                </div>
-              )}
+              ) : null}
+              <div className={`avatar-fallback uppercase h-12 w-12 text-lg border-[1px] flex items-center justify-center rounded-full ${getColor(selectedChatData.color)}`}
+                style={{ display: avatarUrl ? 'none' : 'flex', position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
+                {avatarInitial}
+              </div>
               {/* Online dot */}
               {isOnline && (
                 <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
