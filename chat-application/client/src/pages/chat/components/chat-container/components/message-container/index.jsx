@@ -1,21 +1,46 @@
 import { useAppStore } from "@/store";
-import { HOST } from "@/utils/constants";
+import { HOST,GET_MESSAGES_ROUTE } from "@/utils/constants";
 import { Avatar, AvatarImage } from "@radix-ui/react-avatar";
 import { getColor } from "@/lib/utils";
 import { useEffect, useRef } from "react";
 import moment from "moment";
 import { FaCheck } from 'react-icons/fa';
+import { apiClient } from "@/lib/api-client";
+import { MdFolderZip } from 'react-icons/md';
 
 const MessageContainer = () => {
 
   const scrollRef = useRef();
-  const { selectedChatType, selectedChatData, userInfo, selectedChatMessages } =
+  const { selectedChatType, selectedChatData, userInfo, selectedChatMessages ,setSelectedChatMessages} =
        useAppStore();
+
   useEffect (() => {
+    const getMessages = async () => {
+      try {
+        const response = await apiClient.get(
+          `${GET_MESSAGES_ROUTE}/${selectedChatData._id}`,
+          { withCredentials: true }
+        );
+        if (response.data && response.data.messages) {
+          setSelectedChatMessages(response.data.messages);
+        }
+      } catch (error) {
+        console.error("Failed to fetch messages:", error);
+      }
+    };
+    if (selectedChatData._id) {
+      if (selectedChatType === "contact") getMessages();
+    }
      if (scrollRef.current) {
               scrollRef.current.scrollIntoView({behavior: "smooth" });
       }
-}, [selectedChatMessages]);
+}, [selectedChatData,selectedChatType,selectedChatMessages]);
+
+const checkIfImage = (filePath) => {
+  const imageRegex = 
+    /\.(jpg|jpeg|png|gif|bmp|tiff|tif|webp|svg|ico|heic|heif)$/i;
+  return imageRegex.test(filePath);
+};
 
 const renderMessages = () => {
    let lastDate = null;
@@ -53,65 +78,51 @@ const renderMessages = () => {
         {message.content}
       </div>
     )}
-    <div className="text-xs text-gray-600">
+{
+      message.messageType === "file" && (
+      <div
+        className={`${
+          message.sender !== selectedChatData._id
+            ? " bg-[#8417ff]/5 text-[#8417ff]/90 border-[#8417ff]/50"
+            : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
+        } border inline-block p-4 rounded my-1 max-w-[50%] break-words`}
+      >
+        {
+        checkIfImage(message.fileUrl) ? (
+          <div className="cursor-pointer">
+            <img 
+              src={`${HOST}/${message.fileUrl}`} 
+              alt="Sent file"
+              style={{ maxWidth: 300, maxHeight: 300, borderRadius: 8, objectFit: "contain" }}
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "/fallback-image.png"; // Place a fallback image in public/ or change as needed
+                e.target.alt = "Image not available";
+              }}
+            />
+          </div>
+         ) : (
+         <div className="flex items-center justify-center gap-4">
+           <span className="text-white/8- text-3xl bg-black/20 rounded-full p-3 ">
+           <MdFolderZip/>
+           </span>
+           <span>{message.fileUrl.split("/").pop()}</span>
+         </div>)
+        }
+        </div>
+)}
+ <div className="text-xs text-gray-600">
       {moment(message.timestamp).format("LT")}
     </div>
    </div>
 );
 
-  return (
-    <div className="flex-1 overflow-y-auto scrollbar-hidden p-1 px-8 md:w-[65vw] lg:w-[70vw] xl:w-[80vw] w-full">
-      {selectedChatMessages && selectedChatMessages.map((message, index) => {
-        const isOwnMessage = message.sender === userInfo.id || message.sender._id === userInfo.id;
-        const sender = message.sender || {};
-        const avatarContent = isOwnMessage
-          ? (message.read ? <FaCheck className="text-blue-500 text-lg" title="Read" /> : (sender.firstName ? sender.firstName[0].toUpperCase() : sender.email ? sender.email[0].toUpperCase() : '?'))
-          : (sender.firstName ? sender.firstName[0].toUpperCase() : sender.email ? sender.email[0].toUpperCase() : '?');
-        return (
-          <div
-            key={index}
-            className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} mb-4`}
-          >
-            <div className={`flex ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 max-w-[70%]`}>
-              <div className="w-8 h-8 relative">
-                <Avatar className="h-8 w-8 rounded-full overflow-hidden">
-                  {sender.image ? (
-                    <AvatarImage
-                      src={`${HOST}/${sender.image}`}
-                      alt="profile"
-                      className="object-cover w-full h-full bg-black"
-                    />
-                  ) : (
-                    <div className={`uppercase h-8 w-8 text-sm border-[1px] flex items-center justify-center rounded-full ${getColor(sender.color)}`}>
-                      {avatarContent}
-                    </div>
-                  )}
-                </Avatar>
-              </div>
-              <div
-                className={`px-4 py-2 rounded-lg ${
-                  isOwnMessage
-                    ? 'bg-[#8417ff] text-white'
-                    : 'bg-[#2a2b33] text-white'
-                }`}
-              >
-                <p className="text-sm flex items-center gap-2">
-                  {message.content}
-                </p>
-                <p className="text-xs opacity-70 mt-1">
-                  {new Date(message.timestamp).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </p>
-              </div>
-            </div>
-          </div>
-        );
-      })}
+return (
+    <div className="flex-1 overflow-y-auto scrollbar-hidden p-4 px-8 md:w-[60vw] lg:w-[70vw] xl:w-[80vw] w-full">
+      {renderMessages()}
       <div ref={scrollRef} />
-    </div>
+      </div>
   );
-};
+}
 
 export default MessageContainer;

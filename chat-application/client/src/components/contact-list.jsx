@@ -4,15 +4,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { formatLastSeen, formatMessageTime } from '@/utils/dateUtils';
 
 const ContactList = ({ conversations, isChannel = false}) => {
-    const { selectedChatData, onlineUsers, unreadCounts, setSelectedChatData, setSelectedChatType } = useAppStore();
+    const { selectedChatData, onlineUsers, unreadCounts } = useAppStore();
     const navigate = useNavigate();
     const { userId: selectedUserId } = useParams();
 
     console.log("ContactList received conversations:", conversations);
 
     const handleClick = (conversation) => {
-        setSelectedChatType("contact");
-        setSelectedChatData(conversation);
         navigate(`/chat/${conversation._id}`);
     };
 

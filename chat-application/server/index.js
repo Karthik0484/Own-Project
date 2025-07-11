@@ -22,7 +22,9 @@ app.use(
  })
 );
 
-app.use("/uploads/profiles", express.static("uploads/profiles"));
+app.use("/profiles", express.static("uploads/profiles"));
+app.use("/uploads/files", express.static("uploads/files"));
+app.use("/files", express.static("uploads/files"));
 
 app.use(cookieParser());
 app.use(express.json());

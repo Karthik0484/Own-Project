@@ -1,5 +1,6 @@
 import Message from "../models/MessagesModel.js";
 import User from "../models/UserModel.js";
+import {mkdirSync, existsSync, renameSync} from "fs";
 
 export const getMessages = async (req, res, next) => {
   try {
@@ -21,6 +22,28 @@ export const getMessages = async (req, res, next) => {
   } catch (error) {
     console.error("Error fetching messages:", error);
     return res.status(500).send("Internal Server Error");
+  }
+};
+
+export const uploadFile = async (request, response, next) => {
+  try {
+    if (!request.file) {
+      return response.status(400).send("No file uploaded.");
+    }
+    const date = Date.now();
+    let fileDir = `uploads/files/${date}`;
+    let fileName = `${fileDir}/${request.file.originalname}`;
+
+    mkdirSync(fileDir, { recursive: true });
+
+    renameSync(request.file.path, fileName);
+
+    // Only return the relative path for frontend use
+    const relativePath = `files/${date}/${request.file.originalname}`;
+    return response.status(200).json({ filePath: relativePath });
+  } catch (error) {
+    console.log("Error fetching messages:", error);
+    return response.status(500).send("Internal Server Error");
   }
 };
 
