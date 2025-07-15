@@ -8,6 +8,8 @@ import { FaCheck } from 'react-icons/fa';
 import { apiClient } from "@/lib/api-client";
 import { MdFolderZip } from 'react-icons/md';
 import { IoMdArrowRoundDown } from 'react-icons/io';
+import { set } from "date-fns";
+import { IoCloseSharp } from "react-icons/io5";
 
 const MessageContainer = () => {
 
@@ -16,6 +18,9 @@ const MessageContainer = () => {
   const [isAutoScroll, setIsAutoScroll] = useState(true);
   const { selectedChatType, selectedChatData, userInfo, selectedChatMessages ,setSelectedChatMessages} =
        useAppStore();
+
+const [showImage, setShowImage] = useState(false);
+const [imageUrl, setImageUrl] = useState(null);
 
   // Fetch messages on chat change
   useEffect(() => {
@@ -131,7 +136,14 @@ const downloadFile = async (url) => {
       >
         {
         checkIfImage(message.fileUrl) ? (
-          <div className="cursor-pointer">
+          <div 
+           className="cursor-pointer"
+            onClick={() => {
+              setShowImage(true);
+              setImageUrl(message.fileUrl);
+            }}
+            >
+
             <img 
               src={`${HOST}/${message.fileUrl}`} 
               alt="Sent file"
@@ -172,6 +184,32 @@ const downloadFile = async (url) => {
     >
       {renderMessages()}
       <div ref={scrollRef} />
+      {
+        showImage && <div className="fixed z-[1000] top-0 left-0 h-[100vh] w-[100vw] flex items-center justify-center backdrop-blur-lg">
+          <div>
+            <img src={`${HOST}/${imageUrl}`} alt="Sent file"
+            className = "h-[80vh] w-full bg-cover"
+            />
+          </div>
+          <div className="flex gap-5 fixed top-0 mt-5">
+            <button
+            className="bg-black/20 rounded-full p-3 text-2xl cursor-pointer hover:bg-black/50 transition-all duration-300"
+            onClick = {() => downloadFile(imageUrl)}
+            >
+              <IoMdArrowRoundDown />
+            </button>
+            <button
+            className="bg-black/20 rounded-full p-3 text-2xl cursor-pointer hover:bg-black/50 transition-all duration-300"
+            onClick = {() => {
+              setShowImage(false);
+              setImageUrl(null);
+            }}
+            >
+              <IoCloseSharp />
+            </button>
+          </div>
+        </div>
+      }
     </div>
   );
 }
