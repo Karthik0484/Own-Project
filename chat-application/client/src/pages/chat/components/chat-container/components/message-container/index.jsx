@@ -7,6 +7,7 @@ import moment from "moment";
 import { FaCheck } from 'react-icons/fa';
 import { apiClient } from "@/lib/api-client";
 import { MdFolderZip } from 'react-icons/md';
+import { IoMdArrowRoundDown } from 'react-icons/io';
 
 const MessageContainer = () => {
 
@@ -88,6 +89,20 @@ const renderMessages = () => {
    });
 };
 
+const downloadFile = async (url) => {
+  const response = await apiClient.get(`${HOST}/${url}`, {
+    responseType: "blob",
+  });
+  const urlBlob = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement("a");
+  link.href = urlBlob;
+  link.setAttribute("download", url.split("/").pop());
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(urlBlob);
+};
+
  const renderDMMessages = (message) => ( 
   <div
     className={`${
@@ -134,6 +149,11 @@ const renderMessages = () => {
            <MdFolderZip/>
            </span>
            <span>{message.fileUrl.split("/").pop()}</span>
+           <span className="bg-black/20 rounded-full p-3 text-2xl cursor-pointer hover:bg-black/50 transition-all duration-300"
+           onClick={() => downloadFile(message.fileUrl)}
+           >
+            <IoMdArrowRoundDown/>
+           </span>
          </div>)
         }
         </div>
