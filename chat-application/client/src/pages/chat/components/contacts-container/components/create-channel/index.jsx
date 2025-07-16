@@ -14,14 +14,8 @@ import {
     DialogTitle,
   } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import Lottie from "react-lottie";
-import { animationDefaultOptions } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
-import { GET_ALL_CONTACTS_ROUTES, HOST, SEARCH_CONTACTS_ROUTES } from "@/utils/constants";
-import { ScrollArea } from "@radix-ui/react-scroll-area";
-import { Contact } from "lucide-react";
-import { Avatar, AvatarImage } from "@radix-ui/react-avatar";
-import { getColor } from "@/lib/utils";
+import { CREATE_CHANNEL_ROUTE, GET_ALL_CONTACTS_ROUTES, SEARCH_CONTACTS_ROUTES } from "@/utils/constants";
 import { useAppStore } from "@/store";
 import { useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
@@ -31,7 +25,7 @@ import MultipleSelector from "@/components/ui/multipleselect";
 
 const CreateChannel = () => {
 
-    const { setSelectedChatType, setSelectedChatData, loadMessages, conversations, addConversation } = useAppStore();
+    const { setSelectedChatType, setSelectedChatData, addChannel } = useAppStore();
     const [newChannelModal, setNewChannelModal] = useState(false);
     const [searchedContacts, setSearchedContacts] = useState([]);
     const [allContacts, setAllContacts] = useState([]);
@@ -51,7 +45,28 @@ const CreateChannel = () => {
 
     const navigate = useNavigate();
 
-    const createChannel = async () => {}
+    const createChannel = async () => {
+      try {
+        if (channelName.length>0 && selectedContacts.length>0) {
+          const response  = await apiClient.post(
+            CREATE_CHANNEL_ROUTE, 
+            {
+              name: channelName,
+              members: selectedContacts.map((contact) => contact.value),
+            },
+            {withCredentials: true}
+          );
+          if (response.status === 201) {
+            setChannelName("");
+            setSelectedContacts([]);
+            setNewChannelModal(false);
+            addChannel(response.data.channel);
+          }
+        }
+      } catch (error) {
+        console.error("Error creating channel:", error);
+      }
+    };
 
   return (
     <>

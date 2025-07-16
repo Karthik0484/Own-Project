@@ -7,7 +7,7 @@ import { useSocket } from "@/context/SocketContext";
 import CreateChannel from "./components/create-channel";
 
 const ContactsContainer = () => {
-  const { conversations, loadConversations, addConversation } = useAppStore();
+  const { conversations, loadConversations, addConversation,channels } = useAppStore();
   const socket = useSocket();
 
   useEffect(() => {
@@ -64,6 +64,9 @@ const ContactsContainer = () => {
         </div>
         <div className="max-h-[38vh] overflow-y-auto scrollbar-hidden">
           <ContactList conversations={conversations} />
+        </div>
+        <div className="max-h-[38vh] overflow-y-auto scrollbar-hidden">
+          <ContactList contacts={channels} isChannel ={true}/>
         </div>
       </div>
       <div className="my-5">
