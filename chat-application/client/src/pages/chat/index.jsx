@@ -10,6 +10,8 @@ import ChatContainer from "./components/chat-container";
 import { useSocket } from "@/context/SocketContext";
 
 const Chat = () => {
+
+
   const {
     userInfo,
     selectedChatData,
@@ -17,6 +19,10 @@ const Chat = () => {
     setSelectedChatMessages,
     conversations,
     setSelectedChatType,
+    isUploading,
+    isDownloading,
+    fileUploadProgress,
+    fileDownloadProgress,
   } = useAppStore();
   const navigate = useNavigate();
   const { contactId } = useParams();
@@ -94,6 +100,20 @@ const Chat = () => {
 
   return (
     <div className="flex h-[100vh] text-white overflow-hidden">
+      {
+        isUploading && (
+          <div className="h-[100vh] w-[100vw] fixed top-0 left-0 bg-black/80 flex items-center justify-center flex-col gap-5 backdrop-blur-lg ">
+            <h5 className="text-5xl animate-pulse">Uploading</h5>
+            { fileUploadProgress }%
+          </div>
+      )}
+      {
+        isDownloading && (
+          <div className="h-[100vh] w-[100vw] fixed top-0 left-0 bg-black/80 flex items-center justify-center flex-col gap-5 backdrop-blur-lg ">
+            <h5 className="text-5xl animate-pulse">Downloading</h5>
+            { fileDownloadProgress }%
+          </div>
+      )}
       <ContactsContainer/>
       {
         selectedChatData === undefined ? (

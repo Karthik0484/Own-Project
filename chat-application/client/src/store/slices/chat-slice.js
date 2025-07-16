@@ -2,6 +2,14 @@ export const createChatSlice = (set,get) => ({
     selectedChatType: undefined,
     selectedChatData: undefined,
     selectedChatMessages: [],
+    isUploading:false,
+    isDownloading:false,
+    fileUploadProgress:0,
+    fileDownloadProgress:0,
+    setIsUploading: (isUploading) => set({ isUploading }),
+    setIsDownloading: (isDownloading) => set({ isDownloading }),
+    setFileUploadProgress: (fileUploadProgress) => set({ fileUploadProgress }),
+    setFileDownloadProgress: (fileDownloadProgress) => set({ fileDownloadProgress }),
     conversations: [],
     unreadCounts: {}, // Track unread messages per conversation
     onlineUsers: {}, // { userId: true/false }

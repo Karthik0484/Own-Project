@@ -16,7 +16,7 @@ const MessageContainer = () => {
   const scrollRef = useRef();
   const containerRef = useRef();
   const [isAutoScroll, setIsAutoScroll] = useState(true);
-  const { selectedChatType, selectedChatData, userInfo, selectedChatMessages ,setSelectedChatMessages} =
+  const { selectedChatType, selectedChatData, userInfo, selectedChatMessages ,setSelectedChatMessages,setFileDownloadProgress,setIsDownloading} =
        useAppStore();
 
 const [showImage, setShowImage] = useState(false);
@@ -95,8 +95,15 @@ const renderMessages = () => {
 };
 
 const downloadFile = async (url) => {
+  setIsDownloading(true);
+  setFileDownloadProgress(0);
   const response = await apiClient.get(`${HOST}/${url}`, {
     responseType: "blob",
+    onDownloadProgress: (progressEvent) => {
+      const { loaded,total} = progressEvent;
+    const percentCompleted = Math.round((loaded * 100) / total);
+    setFileDownloadProgress(percentCompleted);
+    }
   });
   const urlBlob = window.URL.createObjectURL(new Blob([response.data]));
   const link = document.createElement("a");
@@ -106,6 +113,8 @@ const downloadFile = async (url) => {
   link.click();
   link.remove();
   window.URL.revokeObjectURL(urlBlob);
+  setIsDownloading(false);
+  setFileDownloadProgress(0);
 };
 
  const renderDMMessages = (message) => ( 

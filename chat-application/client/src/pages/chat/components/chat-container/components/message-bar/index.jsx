@@ -9,12 +9,13 @@ import { RiEmojiStickerLine } from "react-icons/ri";
 import { Socket } from "socket.io-client";
 import { UPLOAD_FILE_ROUTE } from "@/utils/constants";
 import { apiClient } from "@/lib/api-client";
+import { data } from "autoprefixer";
 
 const MessageBar = () => {
     const emojiRef = useRef();
     const fileInputRef = useRef();
     const socket = useSocket();
-    const {selectedChatType,selectedChatData,userInfo, addConversation, onlineUsers, unreadCounts} =useAppStore();
+    const {selectedChatType,selectedChatData,userInfo, addConversation, onlineUsers, unreadCounts,setIsUploading,setIsDownloading,setFileUploadProgress,setFileDownloadProgress} =useAppStore();
     const [message, setMessage] = useState("");
     const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
@@ -175,10 +176,15 @@ const MessageBar = () => {
         if(file){
           const formData = new FormData();
           formData.append("file", file);
+          setIsUploading(true);
           const response = await apiClient.post(UPLOAD_FILE_ROUTE, formData, {
             withCredentials: true,
+            onUploadProgress:data => {
+              setFileUploadProgress(Math.round((data.loaded * 100) / data.total));
+            },
           });
           if(response.status  === 200 && response.data){
+            setIsUploading(false);
             if(selectedChatType === "contact"){
             socket.emit("sendMessage", {
               sender: userInfo.id,
@@ -193,6 +199,7 @@ const MessageBar = () => {
         console.log("Selected file:", {file});
       }
       catch(error){
+        setIsUploading(false);
         console.log({error});
       }
     };
