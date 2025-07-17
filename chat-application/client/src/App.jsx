@@ -23,7 +23,7 @@ const AuthRoute = ({children}) =>{
 };
 
 const App = () => {
-  const { userInfo, setUserInfo, initializeAuth } = useAppStore();
+  const { userInfo, setUserInfo, initializeAuth, setChannels } = useAppStore();
   const [loading, setloading] = useState(true);
   
   useEffect(() =>{
@@ -31,31 +31,35 @@ const App = () => {
   }, [initializeAuth]);
 
   useEffect(() =>{
-    const getUserData = async() =>{
-      try{
-        const response = await apiClient.get(GET_USER_INFO,
-          {withCredentials:true,
-  });
-  if(response.status ===200 && response.data.id) {
-    setUserInfo(response.data);
-  } else{
-    setUserInfo(undefined);
-  }   
-  console.log({response});
- }
-      catch(error){
-        setUserInfo(undefined);
-      } finally{
-        setloading(false);
-      }
-    };
-    if(!userInfo){
-      getUserData()
-  
-    }else{
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      apiClient.get('/api/auth/me', { withCredentials: true })
+        .then(response => {
+          if (response.data && response.data.id) {
+            setUserInfo(response.data);
+            // Fetch channels after user info is set
+            apiClient.get('/api/channel', { withCredentials: true })
+              .then(res => {
+                if (res.data) {
+                  if (typeof setChannels === 'function') setChannels(res.data);
+                }
+              });
+          } else {
+            setUserInfo(undefined);
+            localStorage.removeItem('authToken');
+          }
+          setloading(false);
+        })
+        .catch(() => {
+          setUserInfo(undefined);
+          localStorage.removeItem('authToken');
+          setloading(false);
+        });
+    } else {
       setloading(false);
     }
-  },[userInfo,setUserInfo]);
+  }, [setUserInfo, setChannels]);
   if(loading){
     return <div>Please Wait Loading...</div>;
   }

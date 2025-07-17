@@ -30,6 +30,9 @@ const ChatHeader = () => {
       <div className="flex gap-5 items-center w-full justify-between px-20">
         <div className="flex gap-3 items-center justify-center " >
           <div className="w-12 h-12 relative">
+            {
+              selectedChatType === "contact" ? 
+            
             <Avatar className="h-12 w-12  rounded-full overflow-hidden ">
               {avatarUrl ? (
                 <img
@@ -48,21 +51,29 @@ const ChatHeader = () => {
                 <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
               )}
             </Avatar>
+            :(
+              <div className='bg-[ffffff22] h-10 w-10 flex items-center justify-center rounded-full'>
+                #
+              </div>
+           ) }
           </div>
           <div>
             <div className="font-semibold">
-              {
-                selectedChatType === "contact" && selectedChatData.firstName 
-                ? `${selectedChatData.firstName} ${selectedChatData.lastName}`
-                : selectedChatData.email
-              }
+              {selectedChatType === "channel" && selectedChatData?.name && (
+                <span>#{selectedChatData.name}</span>
+              )}
+              {selectedChatType === "contact" && selectedChatData?.firstName ? (
+                <span>{`${selectedChatData.firstName} ${selectedChatData.lastName}`}</span>
+              ) : selectedChatType === "contact" && selectedChatData?.email ? (
+                <span>{selectedChatData.email}</span>
+              ) : null}
             </div>
             <div className="text-xs text-gray-400">
-              {isOnline ? (
+              {selectedChatType === "contact" && (isOnline ? (
                 <span className="text-green-500 font-medium">Online</span>
               ) : (
                 lastSeenFormatted && <span>Last seen: {lastSeenFormatted}</span>
-              )}
+              ))}
             </div>
           </div>
         </div>

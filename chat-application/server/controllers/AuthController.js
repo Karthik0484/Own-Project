@@ -32,8 +32,10 @@ export const signup = async (request, response, next) => {
     console.log("Setting cookie...");
     response.cookie("jwt", token, {
         maxAge,
-        secure: false,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", // true if HTTPS
         sameSite: "Lax",
+        path: "/"
     });
     console.log("Cookie set. Sending response.");
     return response.status(201).json({
@@ -70,8 +72,10 @@ export const login =   async (request, response, next) => {
 
     response.cookie("jwt", createToken(email, user.id), {
         maxAge,
-        secure: false,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", // true if HTTPS
         sameSite: "Lax",
+        path: "/"
     });
     return response.status(200).json({
     user:{
@@ -214,7 +218,7 @@ export const removeProfileImage = async (request, response, next) => {
 
 export const logout = async (request, response, next) => {
     try{
-    response.cookie("jwt","",{maxAge: 1, secure: false, sameSite: "Lax"});
+    response.cookie("jwt","",{maxAge: 1, httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "Lax", path: "/"});
     return response.status(200).send("Logout successfull."); 
   } catch(error) {
         console.log({ error });

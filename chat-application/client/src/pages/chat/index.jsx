@@ -18,6 +18,7 @@ const Chat = () => {
     setSelectedChatData,
     setSelectedChatMessages,
     conversations,
+    channels,
     setSelectedChatType,
     isUploading,
     isDownloading,
@@ -69,6 +70,12 @@ const Chat = () => {
 
     if (contactId) {
       let conversation = conversations.find((c) => c._id === contactId);
+      let channel = channels.find((ch) => ch._id === contactId);
+      if (channel) {
+        setSelectedChatData(channel);
+        setSelectedChatType("channel");
+        // Optionally: fetch channel messages if you support them
+      } else {
       if (!conversation) {
         // Optionally fetch user profile if not found in conversations
         conversation = {
@@ -83,6 +90,7 @@ const Chat = () => {
       setSelectedChatData(conversation);
       setSelectedChatType("contact");
       getMessages();
+      }
     } else {
       setSelectedChatData(undefined);
       setSelectedChatMessages([]);
@@ -91,6 +99,7 @@ const Chat = () => {
   }, [
     contactId,
     conversations,
+    channels,
     setSelectedChatData,
     setSelectedChatMessages,
     setSelectedChatType,

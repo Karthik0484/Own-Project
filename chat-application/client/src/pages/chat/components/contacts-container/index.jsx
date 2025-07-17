@@ -8,12 +8,31 @@ import CreateChannel from "./components/create-channel";
 import { apiClient } from "@/lib/api-client";
 
 const ContactsContainer = () => {
-  const { conversations, loadConversations, addConversation,channels,setChannels,setDirectMessagesContacts } = useAppStore();
+  const { conversations, loadConversations, addConversation,channels,setChannels,setDirectMessagesContacts, userInfo } = useAppStore();
   const socket = useSocket();
 
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
+
+  // Always fetch channels on mount and when userInfo changes
+  useEffect(() => {
+    const getChannels = async () => {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await apiClient.get('/api/channel', {
+        withCredentials: true,
+      });
+      if (response.data) {
+        setChannels(response.data);
+      }
+    };
+    if (userInfo) {
+      getChannels();
+    }
+  }, [userInfo, setChannels]);
 
   useEffect(() => {
     if (socket) {
@@ -51,19 +70,7 @@ const ContactsContainer = () => {
         socket.off("recieveMessage", handleRecieveMessage);
       };
     }
-    const getChannels = async () => {
-    const response = await apiClient.get(GET_USER_CHANNELS_ROUTE, {
-      withCredentials: true,
-    });
-    if (response.data.channels) {
-      setChannels(response.data.channels);
-    }
-  };
-
-  
-  getChannels();
-  }, [socket, addConversation,setChannels,setDirectMessagesContacts]);
-
+  }, [socket, addConversation]);
 
 
   return (

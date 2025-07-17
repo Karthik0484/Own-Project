@@ -78,6 +78,10 @@ const validateLogin = () => {
       );
       if(response.data.user.id){
         setUserInfo(response.data.user);
+        // Store JWT token for session persistence
+        if (response.data.token) {
+          localStorage.setItem('authToken', response.data.token);
+        }
 
 
         // MY code Clear localStorage on successful login
