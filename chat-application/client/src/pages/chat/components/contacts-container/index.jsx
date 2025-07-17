@@ -5,9 +5,10 @@ import { useAppStore } from "@/store";
 import ContactList from "@/components/contact-list";
 import { useSocket } from "@/context/SocketContext";
 import CreateChannel from "./components/create-channel";
+import { apiClient } from "@/lib/api-client";
 
 const ContactsContainer = () => {
-  const { conversations, loadConversations, addConversation,channels } = useAppStore();
+  const { conversations, loadConversations, addConversation,channels,setChannels,setDirectMessagesContacts } = useAppStore();
   const socket = useSocket();
 
   useEffect(() => {
@@ -50,7 +51,20 @@ const ContactsContainer = () => {
         socket.off("recieveMessage", handleRecieveMessage);
       };
     }
-  }, [socket, addConversation]);
+    const getChannels = async () => {
+    const response = await apiClient.get(GET_USER_CHANNELS_ROUTE, {
+      withCredentials: true,
+    });
+    if (response.data.channels) {
+      setChannels(response.data.channels);
+    }
+  };
+
+  
+  getChannels();
+  }, [socket, addConversation,setChannels,setDirectMessagesContacts]);
+
+
 
   return (
     <div className="relative md:w-[35vw] lg:w-[30vw] xl:w-[20vw] bg-[#1b1c24] border-r-2 border-[#2f303b] w-full">
@@ -65,14 +79,16 @@ const ContactsContainer = () => {
         <div className="max-h-[38vh] overflow-y-auto scrollbar-hidden">
           <ContactList conversations={conversations} />
         </div>
-        <div className="max-h-[38vh] overflow-y-auto scrollbar-hidden">
-          <ContactList contacts={channels} isChannel ={true}/>
-        </div>
+       
       </div>
       <div className="my-5">
         <div className="flex items-center justify-between pr-10">
           <Title text="Channels" />
           <CreateChannel />
+           
+        </div>
+        <div className="max-h-[38vh] overflow-y-auto scrollbar-hidden">
+          <ContactList conversations={channels} isChannel ={true}/>
         </div>
       </div>
       <ProfileInfo />

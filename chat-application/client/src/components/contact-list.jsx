@@ -31,9 +31,18 @@ const ContactList = ({ conversations, isChannel = false}) => {
                 sortedConversations.map((conversation) => {
                     const isSelected = selectedUserId === conversation._id;
                     const unreadCount = unreadCounts?.[conversation._id] || 0;
+                    // For channels, use name; for DMs, use firstName/lastName
+                    const displayName = isChannel
+                        ? conversation.name || 'Unnamed Channel'
+                        : `${conversation.firstName || ''} ${conversation.lastName || ''}`.trim();
                     const avatarUrl = conversation.profileImage || conversation.image;
-                    const avatarInitial = conversation.firstName ? conversation.firstName[0].toUpperCase() : conversation.lastName ? conversation.lastName[0].toUpperCase() : '?';
-                    
+                    const avatarInitial = isChannel
+                        ? (conversation.name ? conversation.name[0].toUpperCase() : '#')
+                        : conversation.firstName
+                            ? conversation.firstName[0].toUpperCase()
+                            : conversation.lastName
+                                ? conversation.lastName[0].toUpperCase()
+                                : '?';
                     return (
                         <div
                             key={conversation._id}
@@ -48,15 +57,15 @@ const ContactList = ({ conversations, isChannel = false}) => {
                                     {avatarUrl ? (
                                         <img
                                             src={avatarUrl}
-                                            alt={`${conversation.firstName} ${conversation.lastName}`}
+                                            alt={displayName}
                                             className="w-full h-full rounded-full object-cover"
                                         />
                                     ) : (
                                         <span>{avatarInitial}</span>
                                     )}
                                 </div>
-                                {/* Online status indicator */}
-                                {isOnline(conversation._id) && (
+                                {/* Online status indicator (only for DMs) */}
+                                {!isChannel && isOnline(conversation._id) && (
                                     <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-[#1b1c24]"></div>
                                 )}
                             </div>
@@ -64,11 +73,13 @@ const ContactList = ({ conversations, isChannel = false}) => {
                                 <div className="flex justify-between items-start">
                                     <div className="flex-1 min-w-0">
                                         <span className="text-white font-medium truncate block">
-                                            {`${conversation.firstName} ${conversation.lastName}`}
+                                            {displayName}
                                         </span>
-                                        <span className="text-gray-500 text-xs block">
-                                            {formatLastSeen(conversation.lastSeen)}
-                                        </span>
+                                        {!isChannel && (
+                                            <span className="text-gray-500 text-xs block">
+                                                {formatLastSeen(conversation.lastSeen)}
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="flex flex-col items-end gap-1">
                                         {conversation.lastMessageAt && (
