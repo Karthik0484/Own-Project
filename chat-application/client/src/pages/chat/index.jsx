@@ -41,16 +41,18 @@ const Chat = () => {
   }, [userInfo, navigate]);
 
   useEffect(() => {
-    const getMessages = async () => {
+    const getMessages = async (channelObj) => {
       try {
-        const response = await apiClient.get(
-          `${GET_MESSAGES_ROUTE}/${contactId}`,
-          { withCredentials: true }
-        );
+        let response;
+        if (channelObj) {
+          response = await apiClient.get(`/api/channel/get-channel-messages/${contactId}`, { withCredentials: true });
+        } else {
+          response = await apiClient.get(`${GET_MESSAGES_ROUTE}/${contactId}`, { withCredentials: true });
+        }
         if (response.data && response.data.messages) {
           setSelectedChatMessages(response.data.messages);
           // Mark messages as read
-          if (contactId && userInfo?.id) {
+          if (contactId && userInfo?.id && !channelObj) {
             await apiClient.post(
               "/api/messages/mark-read",
               { senderId: contactId, recipientId: userInfo.id },
@@ -70,26 +72,26 @@ const Chat = () => {
 
     if (contactId) {
       let conversation = conversations.find((c) => c._id === contactId);
-      let channel = channels.find((ch) => ch._id === contactId);
-      if (channel) {
-        setSelectedChatData(channel);
+      let channelObj = channels.find((ch) => ch._id === contactId);
+      if (channelObj) {
+        setSelectedChatData(channelObj);
         setSelectedChatType("channel");
-        // Optionally: fetch channel messages if you support them
+        getMessages(channelObj);
       } else {
-      if (!conversation) {
-        // Optionally fetch user profile if not found in conversations
-        conversation = {
-          _id: contactId,
-          firstName: '',
-          lastName: '',
-          image: '',
-          color: '',
-          lastSeen: '',
-        };
-      }
-      setSelectedChatData(conversation);
-      setSelectedChatType("contact");
-      getMessages();
+        if (!conversation) {
+          // Optionally fetch user profile if not found in conversations
+          conversation = {
+            _id: contactId,
+            firstName: '',
+            lastName: '',
+            image: '',
+            color: '',
+            lastSeen: '',
+          };
+        }
+        setSelectedChatData(conversation);
+        setSelectedChatType("contact");
+        getMessages(null);
       }
     } else {
       setSelectedChatData(undefined);

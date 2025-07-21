@@ -118,10 +118,11 @@ export const SocketProvider = ({ children }) => {
                         incrementUnreadCount(conversationId);
                     }
                 }
+                addContactsInDMContacts(message);
             };
 
             const handleRecieveChannelMessage = (message) => {
-                const{ selectedChatData, selectedChatType, addMessage } = useAppStore.getState();
+                const{ selectedChatData, selectedChatType, addMessage,addChannelInChannelList } = useAppStore.getState();
 
                 if(selectedChatType!== undefined && 
                     selectedChatData._id === message.channelId
@@ -129,10 +130,16 @@ export const SocketProvider = ({ children }) => {
                     console.log("Channel message received:", message);
                     addMessage(message);
                 }
+                addChannelInChannelList(message);
             };
 
             newSocket.on("recieveMessage", handleRecieveMessage);
             newSocket.on("receive-channel-message", handleRecieveChannelMessage);
+
+            // Join channel room on channel selection
+            if (selectedChatType === 'channel' && selectedChatData?._id) {
+                newSocket.emit('join-channel', selectedChatData._id);
+            }
 
             setSocket(newSocket);
 

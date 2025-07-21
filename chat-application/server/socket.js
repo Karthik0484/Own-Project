@@ -92,21 +92,8 @@ const setupSocket = (server) => {
         channelId: channelDoc._id
     };
 
-    if (channelDoc && channelDoc.members) {
-        channelDoc.members.forEach(member => {
-            const memberSocketId = userSocketMap.get(member._id.toString());
-            if (memberSocketId) {
-                io.to(memberSocketId).emit("receive-channel-message", finalData);
-            }
-        });
-        // Optionally, notify the channel creator (admin) if needed
-        if (channelDoc.createdBy) {
-            const adminId = channelDoc.createdBy._id ? channelDoc.createdBy._id.toString() : channelDoc.createdBy.toString();
-            const adminSocketId = userSocketMap.get(adminId);
-            if (adminSocketId) {
-                io.to(adminSocketId).emit("receive-channel-message", finalData);
-            }
-        }
+    if (channelDoc && channelDoc._id) {
+        io.to(channelDoc._id.toString()).emit("receive-channel-message", finalData);
     }
 };
 
@@ -173,6 +160,13 @@ const setupSocket = (server) => {
                 recipientId,
                 messageIds: updatedMessages.map(m => m._id)
             });
+        }
+    });
+
+    socket.on("join-channel", (channelId) => {
+        if (channelId) {
+            socket.join(channelId);
+            console.log(`Socket ${socket.id} joined channel room ${channelId}`);
         }
     });
  });
