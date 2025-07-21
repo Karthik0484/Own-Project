@@ -60,7 +60,7 @@ const ChatHeader = () => {
           <div>
             <div className="font-semibold">
               {selectedChatType === "channel" && selectedChatData?.name && (
-                <span>#{selectedChatData.name}</span>
+                <span>{selectedChatData.name}</span>
               )}
               {selectedChatType === "contact" && selectedChatData?.firstName ? (
                 <span>{`${selectedChatData.firstName} ${selectedChatData.lastName}`}</span>

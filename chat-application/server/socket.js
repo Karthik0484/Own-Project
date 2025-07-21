@@ -1,6 +1,7 @@
 import { Socket, Server as SocketIOServer } from "socket.io"
 import Message from "./models/MessagesModel.js";
 import User from "./models/UserModel.js";
+import channel from "./models/ChannelModel.js";
 
 const setupSocket = (server) => {
     const io = new SocketIOServer(server,{
@@ -62,6 +63,53 @@ const setupSocket = (server) => {
     }
  };
 
+ const sendChannelMessage = async (message) => {
+    const { channelId, sender, content, messageType, fileUrl } = message;
+
+    const createdMessage = await Message.create({
+        sender,
+        recipient: null,
+        content,
+        channelId,
+        timestamp: new Date(),
+        messageType,
+        fileUrl,
+    });
+
+    const messageData = await Message.findById(createdMessage._id)
+        .populate("sender", "id email firstName lastName image color lastSeen")
+        .exec();
+
+    await channel.findByIdAndUpdate(channelId, {
+        $push: { messages: messageData._id },
+    });
+
+    const channelDoc = await channel.findById(channelId)
+        .populate("members");
+
+    const finalData = {
+        ...messageData._doc,
+        channelId: channelDoc._id
+    };
+
+    if (channelDoc && channelDoc.members) {
+        channelDoc.members.forEach(member => {
+            const memberSocketId = userSocketMap.get(member._id.toString());
+            if (memberSocketId) {
+                io.to(memberSocketId).emit("receive-channel-message", finalData);
+            }
+        });
+        // Optionally, notify the channel creator (admin) if needed
+        if (channelDoc.createdBy) {
+            const adminId = channelDoc.createdBy._id ? channelDoc.createdBy._id.toString() : channelDoc.createdBy.toString();
+            const adminSocketId = userSocketMap.get(adminId);
+            if (adminSocketId) {
+                io.to(adminSocketId).emit("receive-channel-message", finalData);
+            }
+        }
+    }
+};
+
  io.on("connection", (socket) => {
     console.log("New socket connection:", socket.id);
     const userId = socket.handshake.query.userId;
@@ -95,6 +143,8 @@ const setupSocket = (server) => {
     socket.on("sendMessage", (data) => {
         sendMessage(data);
     });
+    
+    socket.on("send-channel-message", sendChannelMessage);
 
     socket.on("typing", (data) => {
         const { recipient, isTyping } = data;
