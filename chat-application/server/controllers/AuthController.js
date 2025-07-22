@@ -17,9 +17,16 @@ export const signup = async (request, response, next) => {
     try{
         console.log("Signup request received:", request.body);
         const{ email,password } = request.body;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if(!email || !password){
             console.log("Validation failed: Email or password missing.");
-            return response.status(400).send("Email and Password is required.")
+            return response.status(400).json({ message: "Email and Password is required." });
+        }
+        if(!emailRegex.test(email)) {
+            return response.status(400).json({ message: "Invalid email format" });
+        }
+        if(password.length < 8) {
+            return response.status(400).json({ message: "Password must be at least 8 characters long" });
         }
     console.log("Creating user...");
     const user = await User.create({ email,password });
@@ -58,16 +65,23 @@ export const signup = async (request, response, next) => {
 export const login =   async (request, response, next) => {
     try{
         const{ email,password } = request.body;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if(!email || !password){
-            return response.status(400).send("Email and Password is required.");
+            return response.status(400).json({ message: "Email and Password is required." });
+        }
+        if(!emailRegex.test(email)) {
+            return response.status(400).json({ message: "Invalid email format" });
+        }
+        if(password.length < 8) {
+            return response.status(400).json({ message: "Password must be at least 8 characters long" });
         }
     const user = await User.findOne({ email }); 
     if(!user){
-        return response.status(404).send("User with given email not found.");
+        return response.status(404).json({ message: "User with given email not found." });
     }
     const auth = await compare(password, user.password);
     if(!auth){
-        return response.status(400).send("Password is incorrect.");   
+        return response.status(400).json({ message: "Password is incorrect." });   
     }
 
     response.cookie("jwt", createToken(email, user.id), {

@@ -39,13 +39,23 @@ const Auth = () => {
 
  // MY code
 
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const validateLogin = () => {
-  if(!email.length) {
+  if (!email.length) {
     toast.error("Email is required.");
     return false;
   }
-  if(!password.length) {
+  if (!emailRegex.test(email)) {
+    toast.error("Please enter a valid email address.");
+    return false;
+  }
+  if (!password.length) {
     toast.error("Password is required.");
+    return false;
+  }
+  if (password.length < 8) {
+    toast.error("Password must be at least 8 characters long.");
     return false;
   }
   return true;
@@ -54,15 +64,23 @@ const validateLogin = () => {
 
   const validateSignup = () =>{
    
-    if(!email.length) {
+    if (!email.length) {
       toast.error("Email is required.");
       return false;
     }
-    if(!password.length) {
+    if (!emailRegex.test(email)) {
+      toast.error("Please enter a valid email address.");
+      return false;
+    }
+    if (!password.length) {
       toast.error("Password is required.");
       return false;
     }
-    if(password !== confirmPassword){
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters long.");
+      return false;
+    }
+    if (password !== confirmPassword){
       toast.error("password and confirm password does not match.");
       return false;
     }
