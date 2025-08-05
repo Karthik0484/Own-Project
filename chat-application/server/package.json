@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node scripts/nuclear-gopd-fix.js && node index.js",
     "dev": "nodemon index.js",
-    "build": "node scripts/apply-patches.js",
+    "build": "node scripts/nuclear-gopd-fix.js",
     "render-build": "node scripts/render-build.js",
     "preinstall": "echo 'Preparing for installation...'",
-    "postinstall": "node scripts/apply-patches.js"
+    "postinstall": "node scripts/nuclear-gopd-fix.js"
   },
   "type": "module",
   "keywords": [],
