@@ -25,7 +25,7 @@ The application was failing with "Cannot find module './gOPD'" error due to case
 ### For Render:
 ```bash
 # Build Command
-npm install && npm run build
+npm install && npm run render-build
 
 # Start Command
 npm start
@@ -35,6 +35,15 @@ npm start
 ```bash
 # Build Command
 npm run build
+
+# Start Command
+npm start
+```
+
+### Alternative Render Build (if render-build fails):
+```bash
+# Build Command
+npm install && npm run build
 
 # Start Command
 npm start
