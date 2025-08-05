@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node scripts/nuclear-gopd-fix.js && node index.js",
+    "start": "node scripts/nuclear-gopd-fix.js && node scripts/nuclear-stream-fix.js && node index.js",
     "dev": "nodemon index.js",
-    "build": "node scripts/nuclear-gopd-fix.js",
+    "build": "node scripts/nuclear-gopd-fix.js && node scripts/nuclear-stream-fix.js",
     "render-build": "node scripts/render-build.js",
     "preinstall": "echo 'Preparing for installation...'",
-    "postinstall": "node scripts/nuclear-gopd-fix.js"
+    "postinstall": "node scripts/nuclear-gopd-fix.js && node scripts/nuclear-stream-fix.js"
   },
   "type": "module",
   "keywords": [],
@@ -20,11 +20,12 @@
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.21.0",
+    "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.6.3",
-    "multer": "^2.0.0",
+    "multer": "^1.4.5-lts.1",
     "qs": "^6.12.0",
+    "readable-stream": "^4.0.0",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
@@ -39,6 +40,9 @@
         "gOPD.js",
         "gOPD"
       ]
-    }
+    },
+    "readable-stream": "^4.0.0",
+    "concat-stream": "^2.0.0",
+    "streamsearch": "^1.0.0"
   }
 }
