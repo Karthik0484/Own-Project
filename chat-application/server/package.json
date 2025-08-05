@@ -4,7 +4,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "build": "node scripts/build.js",
+    "postinstall": "node scripts/patch-gopd.js && node scripts/fix-gopd.js"
   },
   "type": "module",
   "keywords": [],
@@ -28,5 +30,13 @@
   },
   "engines": {
     "node": "20.x"
+  },
+  "overrides": {
+    "gopd": {
+      "files": [
+        "gOPD.js",
+        "gOPD"
+      ]
+    }
   }
 }
