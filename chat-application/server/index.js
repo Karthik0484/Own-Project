@@ -17,7 +17,7 @@ const databaseURL = process.env.DATABASE_URL;
 
 app.use(
     cors({
-    origin: [process.env.ORIGIN, "http://localhost:3000"],
+    origin: [process.env.ORIGIN, "http://localhost:3000", "https://chat-app-frontend.vercel.app", "https://chat-app-frontend-git-main-karthik0484.vercel.app"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
  })
@@ -40,7 +40,8 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/channel", channelRoutes)
 
 const server = app.listen(port, () => {
-    console.log(`server is running at http://localhost:${port}`);
+    console.log(`Server is running on port ${port}`);
+    console.log(`Deployed URL: https://chat-app-backend-r3v4.onrender.com`);
 });
 
 setupSocket(server)
