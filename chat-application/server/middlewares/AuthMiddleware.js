@@ -1,20 +1,19 @@
+// middlewares/AuthMiddleware.js
+
 import jwt from 'jsonwebtoken';
 
-export const verifyToken = (request, response, next) => {
-    let token;
-    // Check Authorization header first
-    const authHeader = request.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        token = authHeader.split(' ')[1];
-    } else if (request.cookies && request.cookies.jwt) {
-        // Fallback to cookie if present
-        token = request.cookies.jwt;
-    }
-    if (!token) return response.status(401).json({ message: 'Unauthorized: No token provided' });
-    jwt.verify(token, process.env.JWT_KEY, (err, payload) => {
-        if (err) return response.status(401).json({ message: 'Unauthorized: Invalid or expired token' });
-        request.userId = payload.userId || payload.id; // support both userId and id
-        request.user = payload;
-        next();
-    });
+export const verifyToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).send('You are not authenticated!');
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  jwt.verify(token, process.env.JWT_KEY, (err, payload) => {
+    if (err) return res.status(403).send('Token is invalid!');
+    req.userId = payload.userId;
+    next();
+  });
 };
