@@ -3,7 +3,7 @@ import { HOST } from "@/utils/constants";
 
 export const apiClient = axios.create({
     baseURL: HOST,
-    withCredentials: true,
+    
 });
 
 // Add request interceptor to include auth token
