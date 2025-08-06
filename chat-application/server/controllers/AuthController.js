@@ -70,6 +70,9 @@ export const login =   async (request, response, next) => {
         return response.status(400).send("Password is incorrect.");   
     }
 
+        // Generate JWT token here
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_KEY, { expiresIn: "1d" });
+
     response.cookie("jwt", createToken(email, user.id), {
         maxAge,
         httpOnly: true,
@@ -78,6 +81,7 @@ export const login =   async (request, response, next) => {
         path: "/"
     });
     return response.status(200).json({
+    token,
     user:{
         id: user.id,
         email: user.email,
