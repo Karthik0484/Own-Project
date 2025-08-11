@@ -1,16 +1,28 @@
-import { Socket, Server as SocketIOServer } from "socket.io"
+import { Server } from "socket.io";
 import Message from "./models/MessagesModel.js";
 import User from "./models/UserModel.js";
 import channel from "./models/ChannelModel.js";
 
-const setupSocket = (server) => {
-    const io = new SocketIOServer(server,{
+const allowedOrigins = [
+  "https://chat-app-frontend-gray-zeta.vercel.app", // production
+  "http://localhost:5173",                        // local dev
+];
+
+export default function setupSocket(server) {
+  const io = new Server(server, {
     cors: {
-        origin: process.env.ORIGIN,
-        methods: ["GET", "POST"],
-        credentials: true,
+      origin: function (origin, callback) {
+        // Allow requests with no origin (like curl, Postman, etc.)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(new Error("Not allowed by CORS"));
+      },
+      credentials: true,
     },
- });
+    path: "/socket.io",
+  });
 
  const userSocketMap = new Map();
 
@@ -171,5 +183,3 @@ const setupSocket = (server) => {
     });
  });
 };
-
-export default setupSocket;

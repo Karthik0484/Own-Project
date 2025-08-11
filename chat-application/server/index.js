@@ -11,16 +11,34 @@ import channelRoutes from "./routes/ChannelRoutes.js";
 
 dotenv.config();
 
+if (!process.env.JWT_KEY) {
+  console.error("FATAL: JWT_KEY is not set in environment variables.");
+  process.exit(1);
+}
+
 const app = express();
 const port = process.env.PORT || 3001;
 const databaseURL = process.env.DATABASE_URL;
 
+const allowedOrigins = [
+  process.env.ORIGIN,
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://chat-app-frontend.vercel.app",
+];
+
 app.use(
-    cors({
-    origin: [process.env.ORIGIN, "http://localhost:3000", "https://chat-app-frontend.vercel.app", "https://chat-app-frontend-git-main-karthik0484.vercel.app"],
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
- })
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  })
 );
 
 app.use("/profiles", express.static("uploads/profiles"));
