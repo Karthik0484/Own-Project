@@ -1,7 +1,7 @@
 import { request } from "express";
 import User from "../models/UserModel.js";
 import jwt from "jsonwebtoken";
-import { compare } from "bcryptjs";
+import bcrypt from "bcrypt";
 import { renameSync, unlinkSync } from "fs";
 
 const maxAge = 3* 24 * 60 * 60 * 1000;
@@ -65,10 +65,13 @@ export const login =   async (request, response, next) => {
     if(!user){
         return response.status(404).send("User with given email not found.");
     }
-    const auth = await compare(password, user.password);
+    const auth = await bcrypt.compare(password, user.password);
     if(!auth){
         return response.status(400).send("Password is incorrect.");   
     }
+
+        // Generate JWT token here
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_KEY, { expiresIn: "1d" });
 
     response.cookie("jwt", createToken(email, user.id), {
         maxAge,
@@ -78,6 +81,7 @@ export const login =   async (request, response, next) => {
         path: "/"
     });
     return response.status(200).json({
+    token,
     user:{
         id: user.id,
         email: user.email,
