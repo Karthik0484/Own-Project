@@ -13,22 +13,10 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, "Password is Required."]
     },
-    firstName: {
-        type: String,
-        required: false
-    },
-    lastName: {
-        type: String,
-        required: false
-    },
-    image: {
-        type: String,
-        required: false
-    },
-    color: {
-        type: String,
-        required: false
-    },
+    firstName: String,
+    lastName: String,
+    image: String,
+    color: String,
     profileSetup: {
         type: Boolean,
         default: false
@@ -43,13 +31,7 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-
-userSchema.pre("save", async function(next){
-    const salt = await genSalt();
-    this.password = await hash(this.password, salt); 
-    next();
-});
-
+// Only one pre-save hook for password hashing
 userSchema.pre("save", async function(next) {
     if (!this.isModified("password")) return next();
     try {
@@ -59,11 +41,7 @@ userSchema.pre("save", async function(next) {
     } catch (err) {
         return next(err);
     }
-
 });
 
-
 const User = mongoose.model("User", userSchema);
-
-
 export default User;
