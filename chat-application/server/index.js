@@ -27,6 +27,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
   "https://chat-app-frontend.vercel.app",
+  "https://chat-app-frontend-gray-zeta.vercel.app",
 ];
 
 app.use(

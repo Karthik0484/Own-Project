@@ -34,11 +34,12 @@ export const signup = async (request, response, next) => {
         maxAge,
         httpOnly: true,
         secure: process.env.NODE_ENV === "production", // true if HTTPS
-        sameSite: "Lax",
+        sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
         path: "/"
     });
     console.log("Cookie set. Sending response.");
     return response.status(201).json({
+    token,
     user:{
         id: user.id,
         email: user.email,
@@ -70,14 +71,13 @@ export const login =   async (request, response, next) => {
         return response.status(400).send("Password is incorrect.");   
     }
 
-        // Generate JWT token here
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_KEY, { expiresIn: "1d" });
+    const token = createToken(email, user.id);
 
-    response.cookie("jwt", createToken(email, user.id), {
+    response.cookie("jwt", token, {
         maxAge,
         httpOnly: true,
         secure: process.env.NODE_ENV === "production", // true if HTTPS
-        sameSite: "Lax",
+        sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
         path: "/"
     });
     return response.status(200).json({
@@ -222,7 +222,7 @@ export const removeProfileImage = async (request, response, next) => {
 
 export const logout = async (request, response, next) => {
     try{
-    response.cookie("jwt","",{maxAge: 1, httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "Lax", path: "/"});
+    response.cookie("jwt","",{maxAge: 1, httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax", path: "/"});
     return response.status(200).send("Logout successfull."); 
   } catch(error) {
         console.log({ error });

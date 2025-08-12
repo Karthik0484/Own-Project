@@ -34,12 +34,12 @@ const App = () => {
     const token = localStorage.getItem('authToken');
     if (token) {
       apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      apiClient.get('/api/auth/me', { withCredentials: true })
+      apiClient.get('/api/auth/user-info', { withCredentials: true })
         .then(response => {
           if (response.data && response.data.id) {
             setUserInfo(response.data);
             // Fetch channels after user info is set
-            apiClient.get('/api/channel', { withCredentials: true })
+            apiClient.get('/api/channel/get-user-channels', { withCredentials: true })
               .then(res => {
                 if (res.data) {
                   if (typeof setChannels === 'function') setChannels(res.data);

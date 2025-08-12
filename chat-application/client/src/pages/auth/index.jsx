@@ -123,6 +123,10 @@ const validateLogin = () => {
       );
       if (response.status === 201){
         setUserInfo(response.data.user);
+        // Store JWT token for session persistence
+        if (response.data.token) {
+          localStorage.setItem('authToken', response.data.token);
+        }
 
           // MY code Clear localStorage on successful login
           localStorage.removeItem("email");
