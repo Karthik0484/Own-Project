@@ -4,15 +4,17 @@ import User from "./models/UserModel.js";
 import channel from "./models/ChannelModel.js";
 
 const allowedOrigins = [
-  "https://chat-app-frontend-gray-zeta.vercel.app", // production
-  "http://localhost:5173",                        // local dev
+  process.env.ORIGIN,
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://chat-app-frontend-gray-zeta.vercel.app/profile",
+  "https://chat-app-frontend.vercel.app",
 ];
 
 export default function setupSocket(server) {
   const io = new Server(server, {
     cors: {
       origin: function (origin, callback) {
-        // Allow requests with no origin (like curl, Postman, etc.)
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes(origin)) {
           return callback(null, true);

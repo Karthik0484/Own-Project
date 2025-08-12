@@ -1,4 +1,7 @@
 import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 if (!process.env.JWT_KEY) {
   console.error('FATAL: JWT_KEY is not set in environment variables.');

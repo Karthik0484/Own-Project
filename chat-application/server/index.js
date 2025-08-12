@@ -11,6 +11,8 @@ import channelRoutes from "./routes/ChannelRoutes.js";
 
 dotenv.config();
 
+console.log("JWT_KEY from env:", process.env.JWT_KEY);
+
 if (!process.env.JWT_KEY) {
   console.error("FATAL: JWT_KEY is not set in environment variables.");
   process.exit(1);

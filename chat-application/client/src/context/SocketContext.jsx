@@ -24,12 +24,14 @@ export const SocketProvider = ({ children }) => {
 
     useEffect(() => {
         if (userInfo) {
-            console.log("Setting up socket connection...");
-            console.log("User info:", userInfo);
-            console.log("HOST:", HOST);
-            
-            const newSocket = io(HOST, {
+            // Determine protocol for production
+            let socketHost = HOST;
+            if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+                socketHost = HOST.replace('http://', 'https://');
+            }
+            const newSocket = io(socketHost, {
                 withCredentials: true,
+                transports: [window.location.protocol === 'https:' ? 'websocket' : 'polling', 'websocket'],
                 query: { userId: userInfo.id },
             });
 

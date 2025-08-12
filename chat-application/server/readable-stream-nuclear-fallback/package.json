@@ -1,0 +1,7 @@
+{
+  "name": "readable-stream",
+  "version": "4.0.0",
+  "description": "Nuclear fix for Node.js 20 compatibility",
+  "main": "index.js",
+  "type": "commonjs"
+}
