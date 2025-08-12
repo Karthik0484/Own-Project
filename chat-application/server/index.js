@@ -11,7 +11,7 @@ import channelRoutes from "./routes/ChannelRoutes.js";
 
 dotenv.config();
 
-console.log("JWT_KEY from env:", process.env.JWT_KEY);
+
 
 if (!process.env.JWT_KEY) {
   console.error("FATAL: JWT_KEY is not set in environment variables.");
@@ -28,15 +28,13 @@ const allowedOrigins = [
   "http://localhost:3000",
   "https://chat-app-frontend.vercel.app",
   "https://chat-app-frontend-gray-zeta.vercel.app",
-];
+].filter(Boolean);
 
 app.use(
   cors({
     origin: function (origin, callback) {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+      if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,

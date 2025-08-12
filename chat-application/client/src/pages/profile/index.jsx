@@ -115,13 +115,13 @@ const Profile = () => {
 
 
   return (
-    <div className="bg-[#1b1c24] h-[100vh] flex items-center justify-center flex-col gap-10">
-      <div className="flex flex-col gap-10 w-[80vw] md:w-max">
+    <div className="bg-[#1b1c24] min-h-[100vh] flex items-center justify-center flex-col gap-10 p-4">
+      <div className="flex flex-col gap-10 w-full max-w-[900px]">
         <div onClick={handleNavigate}>
           <IoArrowBack className="text-4xl lg:text-6xl text-white/90 cursor-pointer"/>
         </div>
-        <div className="grid grid-cols-2">
-          <div className="h-full w-32 md:h-48 relative flex items-center justify-center "
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="h-full w-32 md:w-48 md:h-48 relative flex items-center justify-center mx-auto"
             onMouseEnter={() => setHovered(true)}
             onMouseLeave= {() => setHovered(false)}
             >
@@ -145,7 +145,7 @@ const Profile = () => {
               </Avatar>
                 {
                   hovered && ( 
-                  <div className="absolute inset-[-1] flex items-center justify-center bg-black/50 ring-fuchsia-50 rounded-full "
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full "
                   onClick={image ? handleDeleteImage : handleFileInputClick}
                   >
                {image ?(
@@ -168,12 +168,12 @@ const Profile = () => {
 
           </div>
 
-          <div className="flex min-w-32 md:min-w-64 flex-col gap-5 text-white items-center justify-center rounded-full">
+          <div className="flex min-w-32 md:min-w-64 flex-col gap-5 text-white items-center justify-center">
           <div className="w-full">
             <input placeholder = "Email"
              type="email" 
             disabled value={userInfo.email} 
-            className="rounded-lg p-6 bg-[#2c2e3b] border-none"/>
+            className="rounded-lg p-4 sm:p-6 bg-[#2c2e3b] border-none w-full"/>
           </div>
 
           <div className="w-full">
@@ -181,7 +181,7 @@ const Profile = () => {
             type="text" 
             onChange={(e) => setfirstName(e.target.value)}
             value={firstName}
-            className="rounded-lg p-6 bg-[#2c2e3b] border-none"/>
+            className="rounded-lg p-4 sm:p-6 bg-[#2c2e3b] border-none w-full"/>
           </div>
 
           <div className="w-full">
@@ -189,14 +189,14 @@ const Profile = () => {
             type="text" 
             value={lastName}
             onChange={(e) => setlastName(e.target.value)}
-            className="rounded-lg p-6 bg-[#2c2e3b] border-none"/>
+            className="rounded-lg p-4 sm:p-6 bg-[#2c2e3b] border-none w-full"/>
           </div>
 
-          <div className="w-full flex gap-5">
+          <div className="w-full flex gap-3 sm:gap-5 flex-wrap">
             {
               colors.map((color,index) => (
               <div 
-              className={`${color} h-8 w-8 rounded-full cursor-pointer transition-all duration-300
+              className={`${color} h-9 w-9 sm:h-10 sm:w-10 rounded-full cursor-pointer transition-all duration-300
               ${
                 selectedColor === index 
                 ? "outline outline-white/50 outline-1"
@@ -209,8 +209,8 @@ const Profile = () => {
           </div>
         </div>
       </div>
-      <div>
-      <Button className="h-16 w-full bg-purple-700 hover:bg-purple-900 transition-all duration-300"
+      <div className="w-full max-w-[900px] px-0 md:px-24">
+      <Button className="h-12 sm:h-14 w-full bg-purple-700 hover:bg-purple-900 transition-all duration-300"
         onClick={saveChanges}>
           Save Changes
       </Button>

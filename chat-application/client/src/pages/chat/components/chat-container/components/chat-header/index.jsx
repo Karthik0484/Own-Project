@@ -1,6 +1,6 @@
 import { useAppStore } from '@/store';
 import { getColor } from '@/lib/utils';
-import { RiCloseFill } from 'react-icons/ri';
+import { RiCloseFill, RiArrowLeftLine } from 'react-icons/ri';
 import { Avatar, AvatarImage } from '@radix-ui/react-avatar';
 import { HOST } from '@/utils/constants';
 import { useNavigate } from 'react-router-dom';
@@ -22,12 +22,20 @@ const ChatHeader = () => {
 
   const handleClose = () => {
     closeChat();
-    navigate('/');
+    navigate('/chat');
   };
 
   return (
-    <div className="h-[10vh] border-b-2 border-[#2f303b] flex items-center justify-between px-20">
-      <div className="flex gap-5 items-center w-full justify-between px-20">
+    <div className="h-[10vh] border-b-2 border-[#2f303b] flex items-center justify-between px-4 sm:px-6 md:px-10 xl:px-20">
+      <div className="flex gap-3 sm:gap-5 items-center w-full justify-between">
+        {/* Back button on mobile to show sidebar */}
+        <button
+          className="md:hidden text-neutral-300 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center"
+          onClick={handleClose}
+          aria-label="Back"
+        >
+          <RiArrowLeftLine className="text-2xl" />
+        </button>
         <div className="flex gap-3 items-center justify-center " >
           <div className="w-12 h-12 relative">
             {

@@ -69,6 +69,21 @@
   }
 }
 
+/* Global responsive helpers */
+img, svg, video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Hide default scrollbars on small viewports to avoid accidental horizontal scroll */
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hidden {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
 .poppins-medium {
   font-family: "Poppins", serif;
   font-weight: 500;
