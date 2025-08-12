@@ -216,29 +216,43 @@ const MessageBar = () => {
         console.log({error});
       }
     };
+  const textAreaRef = useRef(null);
+
+  const handleAutoResize = (e) => {
+    const el = textAreaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  };
+
   return (
-    <div className="bg-[#1c1d25] px-3 sm:px-4 md:px-6 py-2 sm:py-3">
+    <div className="bg-[#1c1d25] sticky bottom-[env(safe-area-inset-bottom)] left-0 px-3 sm:px-4 md:px-6 py-2 sm:py-3">
       <div className="w-full flex items-center gap-2 sm:gap-3 md:gap-4">
         {/* Input + inline actions */}
         <div className="flex-1 min-w-0 flex items-center bg-[#2a2b33] rounded-md overflow-hidden px-2 sm:px-3 md:px-4">
-          <input
-            type="text"
-            className="flex-1 min-w-0 bg-transparent py-2 sm:py-2.5 md:py-3 px-2 sm:px-3 text-sm sm:text-base outline-none"
+          <textarea
+            ref={textAreaRef}
+            rows={1}
+            className="flex-1 min-w-0 resize-none bg-transparent py-2 sm:py-2.5 md:py-3 px-2 sm:px-3 text-sm sm:text-base outline-none max-h-40 overflow-y-auto"
             placeholder="Enter message"
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => { setMessage(e.target.value); handleAutoResize(e); }}
+            onInput={handleAutoResize}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSendMessage();
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
             }}
           />
           {/* Attachment */}
           <button
             aria-label="Attach file"
             className="flex-shrink-0 min-w-11 min-h-11 grid place-items-center rounded-md text-neutral-400 hover:text-white focus:outline-none transition-colors p-2 sm:p-2.5 md:p-3"
-            onClick={handleAttachmentClick}
-          >
+             onClick={handleAttachmentClick}
+            >
             <GrAttachment className="w-6 h-6 md:w-7 md:h-7" />
-          </button>
+            </button>
           <input type="file" className="hidden" ref={fileInputRef} onChange={handleAttachmentChange} />
 
           {/* Emoji */}
@@ -249,18 +263,18 @@ const MessageBar = () => {
               onClick={() => setEmojiPickerOpen(true)}
             >
               <RiEmojiStickerLine className="w-6 h-6 md:w-7 md:h-7" />
-            </button>
+              </button>
             <div className="absolute bottom-14 right-0" ref={emojiRef}>
               <EmojiPicker theme="dark" open={emojiPickerOpen} onEmojiClick={handleAddEmoji} autoFocusSearch={false} />
+              </div>
             </div>
-          </div>
         </div>
 
         {/* Send */}
         <button
           aria-label="Send message"
           className="flex-shrink-0 min-w-11 min-h-11 grid place-items-center bg-[#8417ff] hover:bg-[#741bda] rounded-md text-white transition-colors p-2 sm:p-2.5 md:p-3"
-          onClick={handleSendMessage}
+        onClick={handleSendMessage}
         >
           <IoSend className="w-6 h-6 md:w-7 md:h-7" />
         </button>

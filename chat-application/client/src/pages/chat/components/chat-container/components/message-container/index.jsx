@@ -241,7 +241,7 @@ const renderChannelMessages = (message) => {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto scrollbar-hidden p-4 px-8 md:w-[60vw] lg:w-[70vw] xl:w-[80vw] w-full"
+      className="flex-1 overflow-y-auto scrollbar-hidden p-4 pb-24 px-4 sm:px-6 md:px-8 md:w-[60vw] lg:w-[70vw] xl:w-[80vw] w-full"
       style={{ position: "relative" }}
     >
       {renderMessages()}
