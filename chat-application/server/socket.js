@@ -7,7 +7,7 @@ const allowedOrigins = [
   process.env.ORIGIN,
   "http://localhost:5173",
   "http://localhost:3000",
-  "https://chat-app-frontend-gray-zeta.vercel.app/profile",
+  "https://chat-app-frontend-gray-zeta.vercel.app",
   "https://chat-app-frontend.vercel.app",
 ];
 
