@@ -43,13 +43,13 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-<<<<<<< HEAD
 
 userSchema.pre("save", async function(next){
     const salt = await genSalt();
     this.password = await hash(this.password, salt); 
     next();
-=======
+});
+
 userSchema.pre("save", async function(next) {
     if (!this.isModified("password")) return next();
     try {
@@ -59,9 +59,11 @@ userSchema.pre("save", async function(next) {
     } catch (err) {
         return next(err);
     }
->>>>>>> 5dce6386bfcc0970d75381a4c4f67b2783b49f7a
+
 });
 
+
 const User = mongoose.model("User", userSchema);
+
 
 export default User;
