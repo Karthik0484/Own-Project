@@ -217,46 +217,54 @@ const MessageBar = () => {
       }
     };
   return (
-    <div className="h-[10vh] bg-[#1c1d25] flex justify-center items-center px-8 mb-6 gap-6">
-        <div className="flex-1 flex bg-[#2a2b33] rounded-md items-center gap-5 pr-5">
-            <input type="text" className="flex-1 p-5 bg-transparent rounded-md focus:border-none focus:outline-none"
-              placeholder="Enter-Message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleSendMessage();
-                }
-              }}
-            />
-            <button className="text-neutral-500 focus:border-none focus:outline-none focus:text-white duration-300 transition-all"
-             onClick={handleAttachmentClick}
+    <div className="bg-[#1c1d25] px-3 sm:px-4 md:px-6 py-2 sm:py-3">
+      <div className="w-full flex items-center gap-2 sm:gap-3 md:gap-4">
+        {/* Input + inline actions */}
+        <div className="flex-1 min-w-0 flex items-center bg-[#2a2b33] rounded-md overflow-hidden px-2 sm:px-3 md:px-4">
+          <input
+            type="text"
+            className="flex-1 min-w-0 bg-transparent py-2 sm:py-2.5 md:py-3 px-2 sm:px-3 text-sm sm:text-base outline-none"
+            placeholder="Enter message"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSendMessage();
+            }}
+          />
+          {/* Attachment */}
+          <button
+            aria-label="Attach file"
+            className="flex-shrink-0 min-w-11 min-h-11 grid place-items-center rounded-md text-neutral-400 hover:text-white focus:outline-none transition-colors p-2 sm:p-2.5 md:p-3"
+            onClick={handleAttachmentClick}
+          >
+            <GrAttachment className="w-6 h-6 md:w-7 md:h-7" />
+          </button>
+          <input type="file" className="hidden" ref={fileInputRef} onChange={handleAttachmentChange} />
+
+          {/* Emoji */}
+          <div className="relative flex-shrink-0">
+            <button
+              aria-label="Open emoji picker"
+              className="flex-shrink-0 min-w-11 min-h-11 grid place-items-center rounded-md text-neutral-400 hover:text-white focus:outline-none transition-colors p-2 sm:p-2.5 md:p-3"
+              onClick={() => setEmojiPickerOpen(true)}
             >
-                <GrAttachment className="text-2xl "/>
+              <RiEmojiStickerLine className="w-6 h-6 md:w-7 md:h-7" />
             </button>
-            <input type="file" className="hidden" 
-              ref={fileInputRef} onChange={handleAttachmentChange}/>
-            <div className="relative">
-              <button className="text-neutral-500 focus:border-none focus:outline-none focus:text-white duration-300 transition-all"
-               onClick={()=>setEmojiPickerOpen(true)}>
-                <RiEmojiStickerLine className="text-2xl "/>
-              </button>
-              <div className="absolute bottom-16 right-0" ref={emojiRef}>
-              <EmojiPicker 
-                theme="dark"
-                open={emojiPickerOpen}
-                onEmojiClick={handleAddEmoji} 
-                autoFocusSearch={false}
-              />
-              </div>
+            <div className="absolute bottom-14 right-0" ref={emojiRef}>
+              <EmojiPicker theme="dark" open={emojiPickerOpen} onEmojiClick={handleAddEmoji} autoFocusSearch={false} />
             </div>
+          </div>
         </div>
-        <button className="bg-[#8417ff] rounded-md flex items-center justify-center p-5  focus:border-none hover:bg-[#741bda] focus:bg-[#741bda] 
-        focus:outline-none focus:text-white duration-300 transition-all"
-        onClick={handleSendMessage}
+
+        {/* Send */}
+        <button
+          aria-label="Send message"
+          className="flex-shrink-0 min-w-11 min-h-11 grid place-items-center bg-[#8417ff] hover:bg-[#741bda] rounded-md text-white transition-colors p-2 sm:p-2.5 md:p-3"
+          onClick={handleSendMessage}
         >
-            <IoSend className="text-2xl "/>
+          <IoSend className="w-6 h-6 md:w-7 md:h-7" />
         </button>
+      </div>
     </div>
   );
 };
