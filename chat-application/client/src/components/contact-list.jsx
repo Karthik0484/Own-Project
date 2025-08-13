@@ -2,6 +2,7 @@ import React from 'react'
 import { useAppStore } from "@/store";
 import { useNavigate, useParams } from 'react-router-dom';
 import { formatLastSeen, formatMessageTime } from '@/utils/dateUtils';
+import { HOST } from '@/utils/constants';
 
 const ContactList = ({ conversations, isChannel = false}) => {
     const { selectedChatData, onlineUsers, unreadCounts, setSelectedChatType, setSelectedChatData } = useAppStore();
@@ -58,18 +59,20 @@ const ContactList = ({ conversations, isChannel = false}) => {
                                 isSelected ? 'bg-[#2f303b]' : ''
                             }`}
                         >
-                            <div className="relative">
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm overflow-hidden"
-                                    style={{ backgroundColor: conversation.color || '#8338ec' }}>
-                                    {avatarUrl ? (
+                            <div className="relative flex-shrink-0">
+                                <div className="rounded-full flex items-center justify-center text-white font-bold overflow-hidden border border-gray-600 dark:border-gray-300 bg-purple-500 w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12">
+                                    {avatarUrl && (
                                         <img
-                                            src={avatarUrl}
+                                            src={avatarUrl.startsWith('http') ? avatarUrl : `${HOST}/${avatarUrl}`}
                                             alt={displayName}
                                             className="w-full h-full rounded-full object-cover"
+                                            loading="lazy"
+                                            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = 'none'; const fb = e.currentTarget.parentNode.querySelector('.avatar-fallback'); if (fb) fb.style.display = 'flex'; }}
                                         />
-                                    ) : (
-                                        <span>{avatarInitial}</span>
                                     )}
+                                    <div className={`avatar-fallback rounded-full flex items-center justify-center text-white font-bold ${avatarUrl ? 'hidden' : ''} w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12`}>
+                                        {avatarInitial}
+                                    </div>
                                 </div>
                                 {/* Online status indicator (only for DMs) */}
                                 {!isChannel && isOnline(conversation._id) && (

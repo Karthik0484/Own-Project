@@ -34,25 +34,23 @@ const ProfileInfo = () => {
   return (
     <div className="absolute bottom-0 h-16 flex items-center justify-between px-10 w-full bg-[#2a2b33]">
         <div className="flex gap-3 items-center justify-center">
-            <div className="w-12 h-12 relative">
-            <Avatar className="h-12 w-12  rounded-full overflow-hidden ">
-                {
-                  userInfo.image ? ( 
-                    <AvatarImage 
-                      src={`${ HOST }/${ userInfo.image }`} 
-                      alt="profile" 
-                      className="object-cover w-full h-full bg-black"
-                      onError={(e) => { e.target.onerror = null; e.target.src = ""; }}
-                    /> 
-                  ) : ( 
-                    <div  className= {`uppercase h-12 w-12  text-lg border-[1px] flex items-center justify-center rounded-full  ${getColor(userInfo.color)}`}>
-                      { userInfo.firstName 
-                        ? userInfo.firstName.split("").shift() 
-                        : userInfo.email.split("").shift()}
-                    </div>
-                  )
-                }
-              </Avatar>
+            <div className="relative flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12">
+              {userInfo?.image ? (
+                <img
+                  src={userInfo.image.startsWith('http') ? userInfo.image : `${HOST}/${userInfo.image}`}
+                  alt="profile"
+                  loading="lazy"
+                  className="rounded-full object-cover border border-gray-300 w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12"
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = ''; const fb = e.currentTarget.parentNode.querySelector('.avatar-fallback'); if (fb) fb.style.display = 'flex'; }}
+                />
+              ) : null}
+              <div className={`avatar-fallback rounded-full bg-purple-500 flex items-center justify-center text-white font-bold w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 ${userInfo?.image ? 'hidden' : ''}`}
+                style={{ position: 'absolute', top: 0, left: 0 }}
+              >
+                { userInfo?.firstName
+                  ? userInfo.firstName.charAt(0).toUpperCase()
+                  : (userInfo?.email || '?').charAt(0).toUpperCase() }
+              </div>
             </div>
             <div>
               {

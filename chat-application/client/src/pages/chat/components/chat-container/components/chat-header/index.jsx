@@ -36,23 +36,24 @@ const ChatHeader = () => {
         >
           <RiArrowLeftLine className="text-2xl" />
         </button>
-        <div className="flex gap-3 items-center justify-center " >
-          <div className="w-12 h-12 relative">
+        <div className="flex gap-3 items-center justify-center ">
+          <div className="relative flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12">
             {
               selectedChatType === "contact" ? 
             
-            <Avatar className="h-12 w-12  rounded-full overflow-hidden ">
+            <Avatar className="rounded-full overflow-hidden w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12">
               {avatarUrl ? (
                 <img
-                  src={`${HOST}/${avatarUrl}`}
+                  src={avatarUrl.startsWith('http') ? avatarUrl : `${HOST}/${avatarUrl}`}
                   alt="profile"
-                  className="object-cover w-full h-full bg-black"
+                  className="object-cover w-full h-full bg-black rounded-full"
+                  loading="lazy"
                   onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.parentNode.querySelector('.avatar-fallback').style.display = 'flex'; }}
                 />
               ) : null}
-              <div className={`avatar-fallback uppercase h-12 w-12 text-lg border-[1px] flex items-center justify-center rounded-full ${getColor(selectedChatData.color)}`}
-                style={{ display: avatarUrl ? 'none' : 'flex', position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
-                {avatarInitial}
+              <div className={`avatar-fallback rounded-full bg-purple-500 flex items-center justify-center text-white font-bold w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12`}
+                style={{ display: avatarUrl ? 'none' : 'flex', position: 'absolute', top: 0, left: 0 }}>
+                {avatarInitial.toUpperCase()}
               </div>
               {/* Online dot */}
               {isOnline && (
