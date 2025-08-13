@@ -4,7 +4,7 @@ import { RiCloseFill, RiArrowLeftLine } from 'react-icons/ri';
 import { Avatar, AvatarImage, AvatarFallback } from '@radix-ui/react-avatar';
 import { HOST } from '@/utils/constants';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
+import { formatLastSeen } from '@/utils/dateUtils';
 
 const ChatHeader = () => {
   const { closeChat, selectedChatData, selectedChatType, onlineUsers } = useAppStore();
@@ -12,7 +12,7 @@ const ChatHeader = () => {
 
   const isOnline = selectedChatData?._id && onlineUsers?.[selectedChatData._id];
   const lastSeen = selectedChatData?.lastSeen;
-  const lastSeenFormatted = lastSeen ? format(new Date(lastSeen), 'MMM d, yyyy • h:mm a') : '';
+  const lastSeenText = lastSeen ? formatLastSeen(lastSeen) : '';
   const rawAvatar = selectedChatData?.profileImage || selectedChatData?.image || selectedChatData?.profileImageUrl;
   const avatarUrl = rawAvatar
     ? (rawAvatar.startsWith('http') ? rawAvatar : `${HOST}/${rawAvatar.replace(/^\//, '')}`)
@@ -85,7 +85,7 @@ const ChatHeader = () => {
               {selectedChatType === "contact" && (isOnline ? (
                 <span className="text-green-500 font-medium">Online</span>
               ) : (
-                lastSeenFormatted && <span>Last seen: {lastSeenFormatted}</span>
+                lastSeenText && <span>{lastSeenText}</span>
               ))}
             </div>
           </div>
