@@ -21,19 +21,34 @@ const Profile = () => {
   const [hovered, setHovered] = useState(false);
   const [selectedColor, setselectedColor] = useState(0);
   const fileInputRef = useRef(null);
+  const initializedRef = useRef(false);
 
+  // Initialize form fields once from userInfo when available
   useEffect(() => {
-    if(userInfo.ProfileSetup){
-      setfirstName(userInfo.firstName);
-      setlastName(userInfo.lastName);
-      setselectedColor(userInfo.color);
+    if (!initializedRef.current && userInfo) {
+      if(userInfo.profileSetup){
+        setfirstName(userInfo.firstName || "");
+        setlastName(userInfo.lastName || "");
+        setselectedColor(typeof userInfo.color === "number" ? userInfo.color : 0);
+      }
+      if(userInfo.image){
+        setImage(`${HOST}/${userInfo.image}`);
+      } else {
+        setImage(null);
+      }
+      initializedRef.current = true;
     }
-    if(userInfo.image){
+  },[userInfo]);
+
+  // Keep avatar preview in sync with store image without touching name fields
+  useEffect(() => {
+    if (!userInfo) return;
+    if (userInfo.image) {
       setImage(`${HOST}/${userInfo.image}`);
     } else {
       setImage(null);
     }
-  },[userInfo]);
+  }, [userInfo?.image]);
 
   const validateProfile = () => {
     if(!firstName) {
@@ -70,7 +85,7 @@ const Profile = () => {
   // To handle state management in profile Setup
 
   const handleNavigate = () => {
-    if(userInfo.ProfileSetup) {
+    if(userInfo.profileSetup) {
       navigate("/chat");
     }else{
       toast.error("Please setup Profile.");
@@ -99,16 +114,22 @@ const Profile = () => {
   };
 
   const handleDeleteImage = async () => {
+    const previousImage = image;
+    // Optimistically update UI
+    setImage(null);
     try{
       const response= await apiClient.delete(REMOVE_PROFILE_IMAGE_ROUTE,{
         withCredentials: true,
       });
       if(response.status===200){
+        // Persist removal in store and localStorage
         setUserInfo({ ...userInfo, image: null});
         toast.success("Image removed Successfully");
-        setImage(null);
+        // already cleared above
       }
     }catch(error){
+      // revert on failure
+      setImage(previousImage);
       console.log(error)
     }
   };
@@ -145,16 +166,18 @@ const Profile = () => {
               </Avatar>
                 {
                   hovered && ( 
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full "
-                  onClick={image ? handleDeleteImage : handleFileInputClick}
-                  >
-               {image ?(
-                <FaTrash className="text-white text-3xl cursor-pointer"  /> 
-                ):(
-                <FaPlus className="text-white text-3xl cursor-pointer"/>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full ">
+                    {image ? (
+                      <button type="button" aria-label="Delete profile image" onClick={handleDeleteImage}>
+                        <FaTrash className="text-white text-3xl cursor-pointer" />
+                      </button>
+                    ) : (
+                      <button type="button" aria-label="Add profile image" onClick={handleFileInputClick}>
+                        <FaPlus className="text-white text-3xl cursor-pointer" />
+                      </button>
+                    )}
+                  </div>
                 )}
-             </div>
-            )}
 
            { /* profile image */ }
 

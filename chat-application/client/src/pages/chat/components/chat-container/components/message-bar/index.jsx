@@ -24,15 +24,18 @@ const MessageBar = () => {
 
     useEffect(() => {
         function handleClickOutside(event) {
-            if(emojiRef.current && !emojiRef.current.contains(event.target)){
+            if (emojiRef.current && !emojiRef.current.contains(event.target)) {
                 setEmojiPickerOpen(false);
             }
         }
-        document.addEventListener("mousedown", handleClickOutside);
+        const handler = (e) => handleClickOutside(e);
+        document.addEventListener("mousedown", handler, true);
+        document.addEventListener("touchstart", handler, true);
         return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("mousedown", handler, true);
+            document.removeEventListener("touchstart", handler, true);
         };
-    }, [emojiRef]);
+    }, []);
 
     useEffect(() => {
         console.log("MessageBar - selectedChatType changed:", selectedChatType);
@@ -90,8 +93,16 @@ const MessageBar = () => {
         };
     }, [message, socket, selectedChatData, isTyping]);
 
-    const handleAddEmoji = (emoji) => {
-        setMessage((msg) => msg + emoji.emoji);
+    const handleAddEmoji = (emojiData, emojiObject) => {
+        // Support both v3 (emojiData.emoji) and v4 (emojiObject.emoji)
+        const emojiChar = emojiObject?.emoji || emojiData?.emoji || '';
+        if (!emojiChar) return;
+        setMessage((msg) => msg + emojiChar);
+        setEmojiPickerOpen(false);
+        // Refocus textarea for continued typing
+        requestAnimationFrame(() => {
+          textAreaRef.current?.focus();
+        });
     };
 
     const handleSendMessage = async() => {
@@ -229,7 +240,7 @@ const MessageBar = () => {
     <div className="bg-[#1c1d25] sticky bottom-[env(safe-area-inset-bottom)] left-0 px-3 sm:px-4 md:px-6 py-2 sm:py-3">
       <div className="w-full flex items-center gap-2 sm:gap-3 md:gap-4">
         {/* Input + inline actions */}
-        <div className="flex-1 min-w-0 flex items-center bg-[#2a2b33] rounded-md overflow-hidden px-2 sm:px-3 md:px-4">
+        <div className="flex-1 min-w-0 flex items-center bg-[#2a2b33] rounded-md overflow-visible px-2 sm:px-3 md:px-4">
           <textarea
             ref={textAreaRef}
             rows={1}
@@ -256,17 +267,19 @@ const MessageBar = () => {
           <input type="file" className="hidden" ref={fileInputRef} onChange={handleAttachmentChange} />
 
           {/* Emoji */}
-          <div className="relative flex-shrink-0">
+          <div className="relative flex-shrink-0" ref={emojiRef}>
             <button
               aria-label="Open emoji picker"
               className="flex-shrink-0 min-w-11 min-h-11 grid place-items-center rounded-md text-neutral-400 hover:text-white focus:outline-none transition-colors p-2 sm:p-2.5 md:p-3"
-              onClick={() => setEmojiPickerOpen(true)}
+              onClick={() => setEmojiPickerOpen((v) => !v)}
             >
               <RiEmojiStickerLine className="w-6 h-6 md:w-7 md:h-7" />
               </button>
-            <div className="absolute bottom-14 right-0" ref={emojiRef}>
-              <EmojiPicker theme="dark" open={emojiPickerOpen} onEmojiClick={handleAddEmoji} autoFocusSearch={false} />
+            {emojiPickerOpen && (
+              <div className="absolute bottom-14 right-0 z-50">
+                <EmojiPicker theme="dark" onEmojiClick={handleAddEmoji} autoFocusSearch={false} />
               </div>
+            )}
             </div>
         </div>
 

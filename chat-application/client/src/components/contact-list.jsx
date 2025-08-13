@@ -76,7 +76,10 @@ const ContactList = ({ conversations, isChannel = false}) => {
                                 </div>
                                 {/* Online status indicator (only for DMs) */}
                                 {!isChannel && isOnline(conversation._id) && (
-                                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-[#1b1c24]"></div>
+                                    <div
+                                      className="absolute rounded-full bg-green-500 border-2 border-[#1b1c24]"
+                                      style={{ right: -2, bottom: -2, width: 10, height: 10 }}
+                                    ></div>
                                 )}
                             </div>
                             <div className="flex-1 min-w-0">

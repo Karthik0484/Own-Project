@@ -2,7 +2,8 @@ import { request } from "express";
 import User from "../models/UserModel.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import { renameSync, unlinkSync } from "fs";
+import { renameSync, unlinkSync, existsSync } from "fs";
+import path from "path";
 
 const maxAge = 3* 24 * 60 * 60 * 1000;
 
@@ -201,22 +202,29 @@ export const removeProfileImage = async (request, response, next) => {
       const user = await User.findById(userId);
 
       if(!user) {
-        return response.status(404).send("User not found..")
+        return response.status(404).send("User not found.")
       }
 
-      if(user.image){
-        unlinkSync(user.image);
+      if (user.image) {
+        try {
+          // Support stored values like "profiles/<file>" by resolving under uploads/
+          const diskPath = path.resolve(process.cwd(), "uploads", user.image);
+          if (existsSync(diskPath)) {
+            unlinkSync(diskPath);
+          }
+        } catch (fsErr) {
+          // Log but do not fail the whole request if file removal fails
+          console.warn("Failed to remove profile image from disk:", fsErr?.message || fsErr);
+        }
       }
 
       user.image = null;
       await user.save();
-        
 
-
-    return response.status(200).send("Profile image removed successfully"); 
-  } catch(error) {
-        console.log({ error });
-        return response.status(500).send("Internal Server Error");
+      return response.status(200).send("Profile image removed successfully"); 
+    } catch(error) {
+      console.error("removeProfileImage error:", error);
+      return response.status(500).send("Internal Server Error");
     }
 };
 

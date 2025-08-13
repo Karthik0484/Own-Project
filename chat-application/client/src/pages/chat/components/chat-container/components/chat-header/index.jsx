@@ -1,7 +1,7 @@
 import { useAppStore } from '@/store';
 import { getColor } from '@/lib/utils';
 import { RiCloseFill, RiArrowLeftLine } from 'react-icons/ri';
-import { Avatar, AvatarImage } from '@radix-ui/react-avatar';
+import { Avatar, AvatarImage, AvatarFallback } from '@radix-ui/react-avatar';
 import { HOST } from '@/utils/constants';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -13,7 +13,10 @@ const ChatHeader = () => {
   const isOnline = selectedChatData?._id && onlineUsers?.[selectedChatData._id];
   const lastSeen = selectedChatData?.lastSeen;
   const lastSeenFormatted = lastSeen ? format(new Date(lastSeen), 'MMM d, yyyy • h:mm a') : '';
-  const avatarUrl = selectedChatData.profileImage || selectedChatData.image;
+  const rawAvatar = selectedChatData?.profileImage || selectedChatData?.image || selectedChatData?.profileImageUrl;
+  const avatarUrl = rawAvatar
+    ? (rawAvatar.startsWith('http') ? rawAvatar : `${HOST}/${rawAvatar.replace(/^\//, '')}`)
+    : '';
   const avatarInitial = selectedChatData.firstName
     ? selectedChatData.firstName[0].toUpperCase()
     : selectedChatData.lastName
@@ -42,22 +45,23 @@ const ChatHeader = () => {
               selectedChatType === "contact" ? 
             
             <Avatar className="rounded-full overflow-hidden w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12">
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl.startsWith('http') ? avatarUrl : `${HOST}/${avatarUrl}`}
+              {avatarUrl && (
+                <AvatarImage
+                  src={avatarUrl}
                   alt="profile"
                   className="object-cover w-full h-full bg-black rounded-full"
                   loading="lazy"
-                  onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.parentNode.querySelector('.avatar-fallback').style.display = 'flex'; }}
                 />
-              ) : null}
-              <div className={`avatar-fallback rounded-full bg-purple-500 flex items-center justify-center text-white font-bold w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12`}
-                style={{ display: avatarUrl ? 'none' : 'flex', position: 'absolute', top: 0, left: 0 }}>
+              )}
+              <AvatarFallback className="avatar-fallback rounded-full bg-purple-500 flex items-center justify-center text-white font-bold w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12">
                 {avatarInitial.toUpperCase()}
-              </div>
+              </AvatarFallback>
               {/* Online dot */}
               {isOnline && (
-                <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                <div
+                  className="absolute rounded-full bg-green-500 border-2 border-[#1b1c24]"
+                  style={{ right: -2, bottom: -2, width: 10, height: 10 }}
+                ></div>
               )}
             </Avatar>
             :(
