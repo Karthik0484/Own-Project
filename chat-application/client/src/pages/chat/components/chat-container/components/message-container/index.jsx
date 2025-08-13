@@ -5,6 +5,7 @@ import { getColor } from "@/lib/utils";
 import { useEffect, useRef, useState, useCallback } from "react";
 import moment from "moment";
 import { FaCheck } from 'react-icons/fa';
+import { MdDoneAll } from 'react-icons/md';
 import { apiClient } from "@/lib/api-client";
 import { MdFolderZip } from 'react-icons/md';
 import { IoMdArrowRoundDown } from 'react-icons/io';
@@ -53,6 +54,24 @@ const [imageUrl, setImageUrl] = useState(null);
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [selectedChatMessages, isAutoScroll]);
+
+  // Subscribe to status updates from socket
+  useEffect(() => {
+    const { socket } = useAppStore.getState();
+    if (!socket) return;
+    const handleStatusUpdate = ({ messageId, status }) => {
+      setSelectedChatMessages(prev => prev.map(m => m._id === messageId ? { ...m, status, read: status === 'read' ? true : m.read } : m));
+    };
+    const handleMessagesRead = ({ messageIds }) => {
+      setSelectedChatMessages(prev => prev.map(m => messageIds.includes(m._id) ? { ...m, status: 'read', read: true } : m));
+    };
+    socket.on('message_status_update', handleStatusUpdate);
+    socket.on('messagesRead', handleMessagesRead);
+    return () => {
+      socket.off('message_status_update', handleStatusUpdate);
+      socket.off('messagesRead', handleMessagesRead);
+    };
+  }, [setSelectedChatMessages]);
 
   // Detect user scroll position
   const handleScroll = useCallback(() => {
@@ -163,32 +182,65 @@ const downloadFile = async (url) => {
   setFileDownloadProgress(0);
 };
 
- const renderDMMessages = (message) => ( 
+  const renderStatusIcon = (message) => {
+    // Colors per requirement
+    const gray = "#9e9e9e";
+    const blue = "#2196f3";
+    if (message.status === 'read' || message.read) {
+      return <MdDoneAll className="inline-block align-middle" color={blue} size={14} />;
+    }
+    if (message.status === 'delivered') {
+      return <MdDoneAll className="inline-block align-middle" color={gray} size={14} />;
+    }
+    if (message.status === 'sent') {
+      return <FaCheck className="inline-block align-middle" color={gray} size={14} />;
+    }
+    // Fallback for older messages without explicit status: show single gray tick
+    return <FaCheck className="inline-block align-middle" color={gray} size={14} />;
+  };
+
+  const renderDMMessages = (message) => ( 
   <div
     className={`${
          message.sender === selectedChatData._id ? "text-left" : "text-right"
   }`}
   >
     {message.messageType === "text" && (
-      <div
-        className={`${
-          message.sender !== selectedChatData._id
-            ? " bg-[#9333ea] text-white border-transparent"
-            : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
-        } border inline-block p-4 rounded my-1 max-w-[50%] break-words`}
-      >
-        {message.content}
-      </div>
+      <>
+        <div
+          className={`${
+            message.sender !== selectedChatData._id
+              ? " bg-[#9333ea] text-white border-transparent"
+              : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
+          } border inline-block p-4 rounded-2xl my-1 max-w-[50%] break-words`}
+        >
+          {message.content}
+        </div>
+        <div
+          className={`mt-1 flex items-center gap-1 text-[0.75rem] ${
+            message.sender !== selectedChatData._id ? "justify-end" : "justify-start"
+          }`}
+          style={{ color: "#9e9e9e", lineHeight: 1 }}
+        >
+          <span>{moment(message.timestamp).format("LT")}</span>
+          {message.sender !== selectedChatData._id && (
+            <span className="ml-1 flex items-center" aria-label={message.status || 'sent'}>
+              {renderStatusIcon(message)}
+            </span>
+          )}
+        </div>
+      </>
     )}
 {
       message.messageType === "file" && (
-      <div
-        className={`${
-          message.sender !== selectedChatData._id
-            ? " bg-[#9333ea] text-white border-transparent"
-            : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
-        } border inline-block p-4 rounded my-1 max-w-[80%] break-words`}
-      >
+      <>
+        <div
+          className={`${
+            message.sender !== selectedChatData._id
+              ? " bg-[#9333ea] text-white border-transparent"
+              : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
+          } border inline-block p-4 rounded-2xl my-1 max-w-[80%] break-words`}
+        >
         {checkIfImage(message.fileUrl) && (
           <div
             className="cursor-pointer"
@@ -239,15 +291,27 @@ const downloadFile = async (url) => {
             </span>
           </div>
         )}
-        {message.content && (
-          <div className="mt-2 text-sm leading-relaxed">{message.content}</div>
-        )}
-      </div>
+          {message.content && (
+            <div className="mt-2 text-sm leading-relaxed">{message.content}</div>
+          )}
+        </div>
+        <div
+          className={`mt-1 flex items-center gap-1 text-[0.75rem] ${
+            message.sender !== selectedChatData._id ? "justify-end" : "justify-start"
+          }`}
+          style={{ color: "#9e9e9e", lineHeight: 1 }}
+        >
+          <span>{moment(message.timestamp).format("LT")}</span>
+          {message.sender !== selectedChatData._id && (
+            <span className="ml-1 flex items-center" aria-label={message.status || 'sent'}>
+              {renderStatusIcon(message)}
+            </span>
+          )}
+        </div>
+      </>
     )}
- <div className="text-xs text-gray-600">
-      {moment(message.timestamp).format("LT")}
+
     </div>
-   </div>
 );
 
 const renderChannelMessages = (message) => {
@@ -255,24 +319,40 @@ const renderChannelMessages = (message) => {
   return(
     <div className={`mt-5 ${isOwnMessage ? "text-right" : "text-left"}`}>
       {message.messageType === "text" && (
-      <div
-        className={`${
-          message.sender._id ===userInfo.id
-            ? " bg-[#9333ea] text-white border-transparent"
-            : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
-        } border inline-block p-4 rounded my-1 max-w-[50%] break-words ml-9`}
-      >
-        {message.content}
-      </div>
-    )}
+        <>
+          <div
+            className={`${
+              message.sender._id ===userInfo.id
+                ? " bg-[#9333ea] text-white border-transparent"
+                : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
+            } border inline-block p-4 rounded-2xl my-1 max-w-[50%] break-words ml-9`}
+          >
+            {message.content}
+          </div>
+          <div
+            className={`mt-1 flex items-center gap-1 text-[0.75rem] ${
+              message.sender._id === userInfo.id ? "justify-end" : "justify-start"
+            }`}
+            style={{ color: "#9e9e9e", lineHeight: 1 }}
+          >
+            <span>{moment(message.timestamp).format("LT")}</span>
+            {message.sender._id === userInfo.id && (
+              <span className="ml-1 flex items-center" aria-label={message.status || 'sent'}>
+                {renderStatusIcon(message)}
+              </span>
+            )}
+          </div>
+        </>
+      )}
     {message.messageType === "file" && (
-      <div
-        className={`${
-          message.sender._id === userInfo.id
-            ? " bg-[#9333ea] text-white border-transparent"
-            : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
-        } border inline-block p-4 rounded my-1 max-w-[80%] break-words ml-9`}
-      >
+      <>
+        <div
+          className={`${
+            message.sender._id === userInfo.id
+              ? " bg-[#9333ea] text-white border-transparent"
+              : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
+          } border inline-block p-4 rounded-2xl my-1 max-w-[80%] break-words ml-9`}
+        >
         {checkIfImage(message.fileUrl) && (
           <div
             className="cursor-pointer"
@@ -323,10 +403,24 @@ const renderChannelMessages = (message) => {
             </span>
           </div>
         )}
-        {message.content && (
-          <div className="mt-2 text-sm leading-relaxed">{message.content}</div>
-        )}
-      </div>
+          {message.content && (
+            <div className="mt-2 text-sm leading-relaxed">{message.content}</div>
+          )}
+        </div>
+        <div
+          className={`mt-1 flex items-center gap-1 text-[0.75rem] ${
+            message.sender._id === userInfo.id ? "justify-end" : "justify-start"
+          }`}
+          style={{ color: "#9e9e9e", lineHeight: 1 }}
+        >
+          <span>{moment(message.timestamp).format("LT")}</span>
+          {message.sender._id === userInfo.id && (
+            <span className="ml-1 flex items-center" aria-label={message.status || 'sent'}>
+              {renderStatusIcon(message)}
+            </span>
+          )}
+        </div>
+      </>
     )}
     {
       message.sender._id !== userInfo.id ? (

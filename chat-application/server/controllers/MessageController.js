@@ -119,7 +119,7 @@ export const markMessagesAsRead = async (req, res, next) => {
     // Mark all messages from sender to recipient as read
     const result = await Message.updateMany(
       { sender: senderId, recipient: recipientId, read: false },
-      { $set: { read: true } }
+      { $set: { read: true, status: "read" } }
     );
     // Return the updated message IDs
     const updatedMessages = await Message.find({ sender: senderId, recipient: recipientId, read: true }, '_id');

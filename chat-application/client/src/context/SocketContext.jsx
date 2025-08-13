@@ -20,6 +20,7 @@ export const SocketProvider = ({ children }) => {
         incrementUnreadCount,
         setOnlineStatus,
         updateMessageReadStatus,
+        updateMessageStatus,
     } = useAppStore();
 
     useEffect(() => {
@@ -60,6 +61,11 @@ export const SocketProvider = ({ children }) => {
             // Real-time read receipts
             newSocket.on("messagesRead", ({ recipientId, messageIds }) => {
                 updateMessageReadStatus(recipientId, messageIds);
+            });
+
+            // Unified message status updates (sent, delivered, read)
+            newSocket.on("message_status_update", ({ messageId, status }) => {
+                updateMessageStatus(messageId, status);
             });
 
             const handleRecieveMessage = (message) => {

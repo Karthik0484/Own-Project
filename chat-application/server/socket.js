@@ -53,7 +53,7 @@ export default function setupSocket(server) {
         await User.findByIdAndUpdate(message.sender, { lastSeen: new Date() });
 
         console.log("Creating message in database...");
-        const createdMessage = await Message.create(message);
+        const createdMessage = await Message.create({ ...message, status: "sent" });
         console.log("Message created successfully:", createdMessage);
 
         console.log("Populating message data...");
@@ -65,10 +65,18 @@ export default function setupSocket(server) {
         if (recipientSocketId) {
             console.log("Emitting to recipient:", recipientSocketId);
             io.to(recipientSocketId).emit("recieveMessage", messageData);
+            // Immediately update status to delivered if recipient is online
+            await Message.findByIdAndUpdate(createdMessage._id, { status: "delivered" });
+            const senderSock = senderSocketId;
+            if (senderSock) {
+              io.to(senderSock).emit("message_status_update", { messageId: createdMessage._id, status: "delivered" });
+            }
         }
         if (senderSocketId){
             console.log("Emitting to sender:", senderSocketId);
             io.to(senderSocketId).emit("recieveMessage", messageData);
+            // Notify sender that message is sent
+            io.to(senderSocketId).emit("message_status_update", { messageId: createdMessage._id, status: "sent" });
         }
     } catch (error) {
         console.error("Error in sendMessage:", error);
@@ -120,6 +128,27 @@ export default function setupSocket(server) {
         User.findByIdAndUpdate(userId, { online: true, lastSeen: new Date() }).catch(console.error);
         io.emit("userOnline", { userId });
 
+        // When a recipient comes online, mark pending 'sent' messages as 'delivered'
+        (async () => {
+          try {
+            const pending = await Message.find({ recipient: userId, status: "sent" }).select("_id sender");
+            if (pending && pending.length) {
+              const ids = pending.map((m) => m._id);
+              await Message.updateMany({ _id: { $in: ids } }, { $set: { status: "delivered" } });
+              // Notify online senders in real-time
+              for (const m of pending) {
+                const senderId = String(m.sender);
+                const senderSock = userSocketMap.get(senderId);
+                if (senderSock) {
+                  io.to(senderSock).emit("message_status_update", { messageId: m._id, status: "delivered" });
+                }
+              }
+            }
+          } catch (err) {
+            console.error("Error marking pending messages as delivered on connect:", err);
+          }
+        })();
+
         // Heartbeat for lastSeen
         const heartbeat = setInterval(async () => {
             try {
@@ -161,7 +190,7 @@ export default function setupSocket(server) {
         // Mark all messages from sender to recipient as read
         await Message.updateMany(
             { sender: senderId, recipient: recipientId, read: false },
-            { $set: { read: true } }
+            { $set: { read: true, status: "read" } }
         );
         // Find all read message IDs
         const updatedMessages = await Message.find({ sender: senderId, recipient: recipientId, read: true }, '_id');
@@ -171,6 +200,10 @@ export default function setupSocket(server) {
             io.to(senderSocketId).emit("messagesRead", {
                 recipientId,
                 messageIds: updatedMessages.map(m => m._id)
+            });
+            // Also emit unified message_status_update for UI consistency
+            updatedMessages.forEach(({ _id }) => {
+              io.to(senderSocketId).emit("message_status_update", { messageId: _id, status: "read" });
             });
         }
     });

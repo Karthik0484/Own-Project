@@ -20,6 +20,13 @@ export const createChatSlice = (set,get) => ({
     setSelectedChatType: (selectedChatType) => set({ selectedChatType }),
     setSelectedChatData: (selectedChatData) => set({ selectedChatData }),
     setSelectedChatMessages: (selectedChatMessages) => set({ selectedChatMessages }),
+    updateMessageStatus: (messageId, status) => {
+      const { selectedChatMessages } = get();
+      const updated = selectedChatMessages.map(m =>
+        String(m._id) === String(messageId) ? { ...m, status: status, read: status === 'read' ? true : m.read } : m
+      );
+      set({ selectedChatMessages: updated });
+    },
     setConversations: (conversations) => set({ conversations }),
     addConversation: (conversation) => {
       const { conversations, selectedChatData } = get();
@@ -143,7 +150,7 @@ export const createChatSlice = (set,get) => ({
         // Update read status for messages in selectedChatMessages
         const { selectedChatMessages } = get();
         const updatedMessages = selectedChatMessages.map(msg =>
-            messageIds.includes(msg._id) ? { ...msg, read: true } : msg
+            messageIds.includes(msg._id) ? { ...msg, read: true, status: 'read' } : msg
         );
         set({ selectedChatMessages: updatedMessages });
     },
