@@ -1,0 +1,130 @@
+/* Responsive, non-cropping, evenly-spaced emoji grid for emoji-picker-react v4 */
+
+.emoji-picker-wrapper {
+	width: 100%;
+	max-width: 680px;
+	border-radius: 12px;
+	overflow: hidden;
+	z-index: 50;
+    /* Constrain height by default; overridden on mobile */
+    max-height: var(--epr-picker-height, 360px);
+}
+
+.emoji-picker-wrapper .EmojiPickerReact {
+	/* Sizing via CSS variables  */
+	--epr-picker-width: 100%;
+	--epr-picker-height: 360px;
+	--epr-emoji-size: 32px;
+	--epr-emoji-gap: 10px;
+	--epr-border-color: transparent;
+
+	/* Dark theme defaults */
+	--epr-bg-color: #1f212a;
+	--epr-text-color: #e5e7eb;
+	--epr-search-input-bg-color: #2a2d39;
+	--epr-search-input-placeholder-color: #9ca3af;
+	--epr-category-label-bg-color: #1f212a;
+
+	/* Ensure the picker respects the container height and scrolls internally */
+	height: var(--epr-picker-height);
+	max-height: 100%;
+	overflow: hidden;
+}
+
+/* Optional: Force light theme by adding class "light" to wrapper */
+.emoji-picker-wrapper.light .EmojiPickerReact {
+	--epr-bg-color: #ffffff;
+	--epr-text-color: #111827;
+	--epr-search-input-bg-color: #f3f4f6;
+	--epr-search-input-placeholder-color: #6b7280;
+	--epr-category-label-bg-color: #ffffff;
+}
+
+/* Ensure full visibility: no cropping and even centering */
+.emoji-picker-wrapper .epr-emoji {
+	display: grid;
+	place-items: center;
+	width: var(--epr-emoji-size);
+	height: var(--epr-emoji-size);
+	line-height: 1;
+	border-radius: 8px;
+}
+
+.emoji-picker-wrapper .epr-emoji img,
+.emoji-picker-wrapper .epr-emoji .epr-emoji-img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+/* Grid spacing & smooth scroll */
+.emoji-picker-wrapper .epr-emoji-list {
+	gap: var(--epr-emoji-gap) !important;
+	padding: 8px 10px 12px !important;
+	overscroll-behavior: contain;
+	scroll-behavior: smooth;
+	overflow-y: auto;
+}
+
+/* Some versions use epr-body for scrollable area; ensure it scrolls */
+.emoji-picker-wrapper .epr-body {
+	overflow-y: auto;
+}
+
+/* Popover positioning container */
+.emoji-picker-popover {
+	position: absolute;
+	right: 0;
+	bottom: 3.5rem; /* sits above message bar */
+	left: auto;
+}
+
+.emoji-picker-wrapper .epr-search-container {
+	padding: 10px 12px !important;
+}
+
+.emoji-picker-wrapper .epr-category-nav,
+.emoji-picker-wrapper .epr-category-label {
+	padding: 4px 8px !important;
+}
+
+.emoji-picker-wrapper .epr-emoji:hover,
+.emoji-picker-wrapper .epr-emoji:focus-visible {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+/* Responsive sizing */
+@media (max-width: 640px) {
+	/* Turn into a fixed bottom sheet to avoid overflow on small screens */
+	.emoji-picker-popover {
+		position: fixed;
+		left: 50%;
+		transform: translateX(-50%);
+		right: auto;
+		width: min(640px, 96vw);
+		bottom: calc(64px + env(safe-area-inset-bottom));
+		z-index: 60;
+	}
+	.emoji-picker-wrapper {
+		/* Constrain height to viewport with comfortable margins */
+		--epr-picker-height: clamp(260px, 55vh, 420px);
+		max-height: calc(100vh - 120px);
+	}
+	.emoji-picker-wrapper .EmojiPickerReact {
+		height: min(var(--epr-picker-height), calc(100vh - 120px));
+	}
+	.emoji-picker-wrapper .EmojiPickerReact {
+		--epr-emoji-size: 28px;
+		--epr-emoji-gap: 8px;
+	}
+}
+
+@media (max-width: 360px) {
+	.emoji-picker-wrapper .EmojiPickerReact {
+		--epr-emoji-size: 26px;
+		--epr-emoji-gap: 6px;
+	}
+}
+
+

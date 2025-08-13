@@ -2,6 +2,7 @@ import { useSocket } from "@/context/SocketContext";
 import { useAppStore } from "@/store";
 import { Content } from "@radix-ui/react-dialog";
 import EmojiPicker from "emoji-picker-react";
+import "@/styles/emoji-picker.css";
 import { useEffect, useRef, useState } from "react";
 import { GrAttachment } from "react-icons/gr"
 import { IoSend } from "react-icons/io5";
@@ -275,9 +276,15 @@ const MessageBar = () => {
             >
               <RiEmojiStickerLine className="w-6 h-6 md:w-7 md:h-7" />
               </button>
-            {emojiPickerOpen && (
-              <div className="absolute bottom-14 right-0 z-50">
-                <EmojiPicker theme="dark" onEmojiClick={handleAddEmoji} autoFocusSearch={false} />
+          {emojiPickerOpen && (
+              <div className="emoji-picker-popover emoji-picker-wrapper">
+                <EmojiPicker
+                  theme="dark"
+                  onEmojiClick={handleAddEmoji}
+                  autoFocusSearch={false}
+                  lazyLoadEmojis
+                  width="100%"
+                />
               </div>
             )}
             </div>
