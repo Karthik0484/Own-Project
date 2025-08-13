@@ -329,19 +329,6 @@ const renderChannelMessages = (message) => {
           >
             {message.content}
           </div>
-          <div
-            className={`mt-1 flex items-center gap-1 text-[0.75rem] ${
-              message.sender._id === userInfo.id ? "justify-end" : "justify-start"
-            }`}
-            style={{ color: "#9e9e9e", lineHeight: 1 }}
-          >
-            <span>{moment(message.timestamp).format("LT")}</span>
-            {message.sender._id === userInfo.id && (
-              <span className="ml-1 flex items-center" aria-label={message.status || 'sent'}>
-                {renderStatusIcon(message)}
-              </span>
-            )}
-          </div>
         </>
       )}
     {message.messageType === "file" && (
@@ -407,21 +394,22 @@ const renderChannelMessages = (message) => {
             <div className="mt-2 text-sm leading-relaxed">{message.content}</div>
           )}
         </div>
-        <div
-          className={`mt-1 flex items-center gap-1 text-[0.75rem] ${
-            message.sender._id === userInfo.id ? "justify-end" : "justify-start"
-          }`}
-          style={{ color: "#9e9e9e", lineHeight: 1 }}
-        >
-          <span>{moment(message.timestamp).format("LT")}</span>
-          {message.sender._id === userInfo.id && (
-            <span className="ml-1 flex items-center" aria-label={message.status || 'sent'}>
-              {renderStatusIcon(message)}
-            </span>
-          )}
-        </div>
       </>
     )}
+    {/* Single time row below bubble; include ticks for own messages */}
+    <div
+      className={`mt-1 flex items-center gap-1 text-[0.75rem] ${
+        message.sender._id === userInfo.id ? "justify-end" : "justify-start"
+      }`}
+      style={{ color: "#9e9e9e", lineHeight: 1 }}
+    >
+      <span>{moment(message.timestamp).format("LT")}</span>
+      {message.sender._id === userInfo.id && (
+        <span className="ml-1 flex items-center" aria-label={message.status || 'sent'}>
+          {renderStatusIcon(message)}
+        </span>
+      )}
+    </div>
     {
       message.sender._id !== userInfo.id ? (
         <div className="flex items-center justify-start gap-3">
@@ -442,15 +430,8 @@ const renderChannelMessages = (message) => {
             </AvatarFallback>
           </Avatar>
           <span className="text-sm text-white/60">{`${message.sender.firstName} ${message.sender.lastName}`}</span>
-          <span className="text-xs text-white/60">
-          {moment(message.timestamp).format("LT")}
-          </span>
         </div>
-      ) : (
-        <div className="text-xs text-white/60 mt-1">
-          {moment(message.timestamp).format("LT")}
-        </div>
-      )
+      ) : null
     }
     </div>
   );
