@@ -78,6 +78,48 @@ const checkIfImage = (filePath) => {
   return imageRegex.test(filePath);
 };
 
+const checkIfVideo = (filePath) => {
+  const videoRegex = /\.(mp4|webm|ogg|ogv|mov|m4v|avi|mkv)$/i;
+  return videoRegex.test(filePath);
+};
+
+const checkIfAudio = (filePath) => {
+  const audioRegex = /\.(mp3|wav|ogg|m4a|aac|flac)$/i;
+  return audioRegex.test(filePath);
+};
+
+const getMimeTypeFromExtension = (filePath) => {
+  const ext = (filePath.split('.').pop() || '').toLowerCase();
+  const map = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    bmp: 'image/bmp',
+    tiff: 'image/tiff',
+    tif: 'image/tiff',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+    ico: 'image/x-icon',
+    heic: 'image/heic',
+    heif: 'image/heif',
+    mp4: 'video/mp4',
+    webm: 'video/webm',
+    ogg: 'video/ogg',
+    ogv: 'video/ogg',
+    mov: 'video/quicktime',
+    m4v: 'video/x-m4v',
+    avi: 'video/x-msvideo',
+    mkv: 'video/x-matroska',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    m4a: 'audio/mp4',
+    aac: 'audio/aac',
+    flac: 'audio/flac',
+  };
+  return map[ext] || '';
+};
+
 const renderMessages = () => {
    let lastDate = null;
    return selectedChatMessages.map((message, index) => {
@@ -145,44 +187,63 @@ const downloadFile = async (url) => {
           message.sender !== selectedChatData._id
             ? " bg-[#8417ff]/5 text-[#8417ff]/90 border-[#8417ff]/50"
             : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
-        } border inline-block p-4 rounded my-1 max-w-[50%] break-words`}
+        } border inline-block p-4 rounded my-1 max-w-[80%] break-words`}
       >
-        {
-        checkIfImage(message.fileUrl) ? (
-          <div 
-           className="cursor-pointer"
+        {checkIfImage(message.fileUrl) && (
+          <div
+            className="cursor-pointer"
             onClick={() => {
               setShowImage(true);
               setImageUrl(message.fileUrl);
             }}
-            >
-
-            <img 
-              src={`${HOST}/${message.fileUrl}`} 
+          >
+            <img
+              src={`${HOST}/${message.fileUrl}`}
               alt="Sent file"
-              style={{ maxWidth: 300, maxHeight: 300, borderRadius: 8, objectFit: "contain" }}
+              className="w-full h-auto rounded-lg object-contain border border-gray-600 dark:border-gray-300 shadow-sm"
               onError={(e) => {
                 e.target.onerror = null;
-                e.target.src = "/fallback-image.png"; // Place a fallback image in public/ or change as needed
+                e.target.src = "/fallback-image.png";
                 e.target.alt = "Image not available";
               }}
             />
           </div>
-         ) : (
-         <div className="flex items-center justify-center gap-4">
-           <span className="text-white/8- text-3xl bg-black/20 rounded-full p-3 ">
-           <MdFolderZip/>
-           </span>
-           <span>{message.fileUrl.split("/").pop()}</span>
-           <span className="bg-black/20 rounded-full p-3 text-2xl cursor-pointer hover:bg-black/50 transition-all duration-300"
-           onClick={() => downloadFile(message.fileUrl)}
-           >
-            <IoMdArrowRoundDown/>
-           </span>
-         </div>)
-        }
-        </div>
-)}
+        )}
+        {checkIfVideo(message.fileUrl) && (
+          <video
+            controls
+            className="w-full h-auto rounded-lg border border-gray-600 dark:border-gray-300 shadow-sm"
+          >
+            <source src={`${HOST}/${message.fileUrl}`} type={getMimeTypeFromExtension(message.fileUrl)} />
+          </video>
+        )}
+        {checkIfAudio(message.fileUrl) && (
+          <audio
+            controls
+            className="w-full max-w-[300px] rounded-lg border border-gray-600 dark:border-gray-300 shadow-sm"
+          >
+            <source src={`${HOST}/${message.fileUrl}`} type={getMimeTypeFromExtension(message.fileUrl)} />
+          </audio>
+        )}
+        {!checkIfImage(message.fileUrl) && !checkIfVideo(message.fileUrl) && !checkIfAudio(message.fileUrl) && (
+          <div className="flex items-center justify-center gap-4">
+            <span className="text-white/8- text-3xl bg-black/20 rounded-full p-3 ">
+              <MdFolderZip />
+            </span>
+            <span>{message.fileUrl.split("/").pop()}</span>
+            <span
+              className="bg-black/20 rounded-full p-3 text-2xl cursor-pointer hover:bg-black/50 transition-all duration-300"
+              onClick={() => downloadFile(message.fileUrl)}
+            >
+              <IoMdArrowRoundDown />
+            </span>
+          </div>
+        )}
+        {message.content && (
+          <div className="mt-2 text-sm leading-relaxed">{message.content}</div>
+        )}
+      </div>
+    )}
  <div className="text-xs text-gray-600">
       {moment(message.timestamp).format("LT")}
     </div>
@@ -202,6 +263,69 @@ const renderChannelMessages = (message) => {
         } border inline-block p-4 rounded my-1 max-w-[50%] break-words ml-9`}
       >
         {message.content}
+      </div>
+    )}
+    {message.messageType === "file" && (
+      <div
+        className={`${
+          message.sender._id === userInfo.id
+            ? " bg-[#8417ff]/5 text-[#8417ff]/90 border-[#8417ff]/50"
+            : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
+        } border inline-block p-4 rounded my-1 max-w-[80%] break-words ml-9`}
+      >
+        {checkIfImage(message.fileUrl) && (
+          <div
+            className="cursor-pointer"
+            onClick={() => {
+              setShowImage(true);
+              setImageUrl(message.fileUrl);
+            }}
+          >
+            <img
+              src={`${HOST}/${message.fileUrl}`}
+              alt="Sent file"
+              className="w-full h-auto rounded-lg object-contain border border-gray-600 dark:border-gray-300 shadow-sm"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "/fallback-image.png";
+                e.target.alt = "Image not available";
+              }}
+            />
+          </div>
+        )}
+        {checkIfVideo(message.fileUrl) && (
+          <video
+            controls
+            className="w-full h-auto rounded-lg border border-gray-600 dark:border-gray-300 shadow-sm"
+          >
+            <source src={`${HOST}/${message.fileUrl}`} type={getMimeTypeFromExtension(message.fileUrl)} />
+          </video>
+        )}
+        {checkIfAudio(message.fileUrl) && (
+          <audio
+            controls
+            className="w-full max-w-[300px] rounded-lg border border-gray-600 dark:border-gray-300 shadow-sm"
+          >
+            <source src={`${HOST}/${message.fileUrl}`} type={getMimeTypeFromExtension(message.fileUrl)} />
+          </audio>
+        )}
+        {!checkIfImage(message.fileUrl) && !checkIfVideo(message.fileUrl) && !checkIfAudio(message.fileUrl) && (
+          <div className="flex items-center justify-center gap-4">
+            <span className="text-white/8- text-3xl bg-black/20 rounded-full p-3 ">
+              <MdFolderZip />
+            </span>
+            <span>{message.fileUrl.split("/").pop()}</span>
+            <span
+              className="bg-black/20 rounded-full p-3 text-2xl cursor-pointer hover:bg-black/50 transition-all duration-300"
+              onClick={() => downloadFile(message.fileUrl)}
+            >
+              <IoMdArrowRoundDown />
+            </span>
+          </div>
+        )}
+        {message.content && (
+          <div className="mt-2 text-sm leading-relaxed">{message.content}</div>
+        )}
       </div>
     )}
     {
@@ -247,10 +371,10 @@ const renderChannelMessages = (message) => {
       {renderMessages()}
       <div ref={scrollRef} />
       {
-        showImage && <div className="fixed z-[1000] top-0 left-0 h-[100vh] w-[100vw] flex items-center justify-center backdrop-blur-lg">
-          <div>
+        showImage && <div className="fixed z-[1000] top-0 left-0 h-[100vh] w-[100vw] flex items-center justify-center backdrop-blur-lg" onClick={() => { setShowImage(false); setImageUrl(null); }}>
+          <div className="max-h-[85vh] max-w-[95vw] p-2" onClick={(e) => e.stopPropagation()}>
             <img src={`${HOST}/${imageUrl}`} alt="Sent file"
-            className = "h-[80vh] w-full bg-cover"
+            className = "max-h-[80vh] max-w-[90vw] w-auto h-auto object-contain rounded-lg border border-gray-600 dark:border-gray-300 shadow-sm"
             />
           </div>
           <div className="flex gap-5 fixed top-0 mt-5">
