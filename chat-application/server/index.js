@@ -45,6 +45,8 @@ app.use(
 app.use("/profiles", express.static("uploads/profiles"));
 app.use("/uploads/files", express.static("uploads/files"));
 app.use("/files", express.static("uploads/files"));
+// Serve channel images
+app.use("/channels", express.static("uploads/channels"));
 
 app.get("/",(req,res) => {
     res.json("Hello")

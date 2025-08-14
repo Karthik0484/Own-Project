@@ -41,9 +41,11 @@ const ContactList = ({ conversations, isChannel = false}) => {
                     const unreadCount = unreadCounts?.[conversation._id] || 0;
                     // For channels, use name; for DMs, use firstName/lastName
                     const displayName = isChannel
-                        ? conversation.name || 'Unnamed Channel'
+                        ? (conversation.name || 'Unnamed Channel')
                         : `${conversation.firstName || ''} ${conversation.lastName || ''}`.trim();
-                    const avatarUrl = conversation.profileImage || conversation.image;
+                    const avatarUrl = isChannel
+                        ? (conversation.profilePicture || conversation.image || conversation.profileImage)
+                        : (conversation.profileImage || conversation.image);
                     const avatarInitial = isChannel
                         ? (conversation.name ? conversation.name[0].toUpperCase() : '#')
                         : conversation.firstName
@@ -71,7 +73,7 @@ const ContactList = ({ conversations, isChannel = false}) => {
                                         />
                                     )}
                                     <div className={`avatar-fallback rounded-full flex items-center justify-center text-white font-bold ${avatarUrl ? 'hidden' : ''} w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12`}>
-                                        {avatarInitial}
+                                        {isChannel ? (conversation.name ? conversation.name[0].toUpperCase() : '#') : avatarInitial}
                                     </div>
                                 </div>
                                 {/* Online status indicator (only for DMs) */}

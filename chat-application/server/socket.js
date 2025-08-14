@@ -174,6 +174,16 @@ export default function setupSocket(server) {
     
     socket.on("send-channel-message", sendChannelMessage);
 
+    // real-time: channel picture updated
+    socket.on("channel-picture-updated", ({ channelId, profilePicture }) => {
+      io.to(channelId).emit("channel-picture-updated", { channelId, profilePicture });
+    });
+
+    // real-time: channel members added
+    socket.on("channel-members-added", ({ channelId, members }) => {
+      io.to(channelId).emit("channel-members-added", { channelId, members });
+    });
+
     socket.on("typing", (data) => {
         const { recipient, isTyping } = data;
         const recipientSocketId = userSocketMap.get(recipient);

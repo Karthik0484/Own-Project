@@ -10,6 +10,11 @@ export const createChatSlice = (set,get) => ({
     fileDownloadProgress:0,
     channels:[],
     setChannels: (channels) => set({ channels }),
+    updateChannelInList: (channelId, data) => {
+      const { channels } = get();
+      const updated = channels.map((ch) => String(ch._id) === String(channelId) ? { ...ch, ...data } : ch);
+      set({ channels: updated });
+    },
     setIsUploading: (isUploading) => set({ isUploading }),
     setIsDownloading: (isDownloading) => set({ isDownloading }),
     setFileUploadProgress: (fileUploadProgress) => set({ fileUploadProgress }),
