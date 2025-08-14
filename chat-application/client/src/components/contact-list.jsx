@@ -26,8 +26,10 @@ const ContactList = ({ conversations, isChannel = false}) => {
         return !!onlineUsers[userId];
     };
 
+    // Normalize to array to avoid runtime errors when a non-array sneaks in after deploy
+    const conversationsArray = Array.isArray(conversations) ? conversations : [];
     // Sort conversations by the most recent message timestamp
-    const sortedConversations = [...(conversations || [])].sort((a, b) => {
+    const sortedConversations = [...conversationsArray].sort((a, b) => {
         const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
         const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
         return timeB - timeA;

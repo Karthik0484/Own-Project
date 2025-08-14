@@ -71,8 +71,10 @@ const Chat = () => {
     };
 
     if (contactId) {
-      let conversation = conversations.find((c) => c._id === contactId);
-      let channelObj = channels.find((ch) => ch._id === contactId);
+      const conversationsArray = Array.isArray(conversations) ? conversations : [];
+      const channelsArray = Array.isArray(channels) ? channels : [];
+      let conversation = conversationsArray.find((c) => c._id === contactId);
+      let channelObj = channelsArray.find((ch) => ch._id === contactId);
       if (channelObj) {
         setSelectedChatData(channelObj);
         setSelectedChatType("channel");

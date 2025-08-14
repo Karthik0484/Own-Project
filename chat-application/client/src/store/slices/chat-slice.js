@@ -8,11 +8,17 @@ export const createChatSlice = (set,get) => ({
     isDownloading:false,
     fileUploadProgress:0,
     fileDownloadProgress:0,
-    channels:[],
-    setChannels: (channels) => set({ channels }),
+    channels: [],
+    setChannels: (channelsInput) => {
+      const nextChannels = Array.isArray(channelsInput)
+        ? channelsInput
+        : (Array.isArray(channelsInput?.channels) ? channelsInput.channels : []);
+      set({ channels: nextChannels });
+    },
     updateChannelInList: (channelId, data) => {
-      const { channels } = get();
-      const updated = channels.map((ch) => String(ch._id) === String(channelId) ? { ...ch, ...data } : ch);
+      const current = get().channels;
+      const channelsArray = Array.isArray(current) ? current : (Array.isArray(current?.channels) ? current.channels : []);
+      const updated = channelsArray.map((ch) => String(ch._id) === String(channelId) ? { ...ch, ...data } : ch);
       set({ channels: updated });
     },
     setIsUploading: (isUploading) => set({ isUploading }),
@@ -161,14 +167,15 @@ export const createChatSlice = (set,get) => ({
     },
 
     addChannelInChannelList: (message) => {
-        const channels = get().channels;
-        const data = channels.find((channel) => channel._id === message.channelId);
-        const index = channels.findIndex((channel) => channel._id === message.channelId);
-        if(index !== -1 && index !== undefined){
-          channels.splice(index,1);
-          channels.unshift(data);
+        const current = get().channels;
+        const channelsArray = Array.isArray(current) ? [...current] : (Array.isArray(current?.channels) ? [...current.channels] : []);
+        const data = channelsArray.find((channel) => channel._id === message.channelId);
+        const index = channelsArray.findIndex((channel) => channel._id === message.channelId);
+        if(index !== -1 && index !== undefined && data){
+          channelsArray.splice(index,1);
+          channelsArray.unshift(data);
+          set({ channels: channelsArray });
         }
-        set({ channels: channels });
     },
 
     addContactsInDMContacts: (message) => {
