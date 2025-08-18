@@ -11,6 +11,10 @@ const allowedOrigins = [
   "https://chat-app-frontend.vercel.app",
 ].filter(Boolean);
 
+let ioRef = null;
+
+// moved below setupSocket to top-level scope
+
 export default function setupSocket(server) {
   const io = new Server(server, {
     cors: {
@@ -23,6 +27,7 @@ export default function setupSocket(server) {
     },
     path: "/socket.io",
   });
+  ioRef = io;
 
  const userSocketMap = new Map();
 
@@ -115,9 +120,9 @@ export default function setupSocket(server) {
     if (channelDoc && channelDoc._id) {
         io.to(channelDoc._id.toString()).emit("receive-channel-message", finalData);
     }
-};
+  };
 
- io.on("connection", (socket) => {
+  io.on("connection", (socket) => {
     console.log("New socket connection:", socket.id);
     const userId = socket.handshake.query.userId;
     console.log("User ID from query:", userId);
@@ -174,9 +179,11 @@ export default function setupSocket(server) {
     
     socket.on("send-channel-message", sendChannelMessage);
 
-    // real-time: channel picture updated
-    socket.on("channel-picture-updated", ({ channelId, profilePicture }) => {
-      io.to(channelId).emit("channel-picture-updated", { channelId, profilePicture });
+    // real-time: channel picture updated (include cache-busting timestamp)
+    socket.on("channel-picture-updated", ({ channelId, profilePicture, updatedAt }) => {
+      const payload = { channelId, profilePicture };
+      if (updatedAt) payload.updatedAt = updatedAt;
+      io.to(channelId).emit("channel-picture-updated", payload);
     });
 
     // real-time: channel members added
@@ -224,5 +231,12 @@ export default function setupSocket(server) {
             console.log(`Socket ${socket.id} joined channel room ${channelId}`);
         }
     });
- });
-};
+  });
+}
+
+export function emitChannelPictureUpdated({ channelId, profilePicture, updatedAt }) {
+  if (!ioRef) return;
+  const payload = { channelId, profilePicture };
+  if (updatedAt) payload.updatedAt = updatedAt;
+  ioRef.to(String(channelId)).emit("channel-picture-updated", payload);
+}

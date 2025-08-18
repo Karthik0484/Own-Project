@@ -197,9 +197,9 @@ const downloadFile = async (url) => {
     }
     // Fallback for older messages without explicit status: show single gray tick
     return <FaCheck className="inline-block align-middle" color={gray} size={14} />;
-  };
+};
 
-  const renderDMMessages = (message) => ( 
+ const renderDMMessages = (message) => ( 
   <div
     className={`${
          message.sender === selectedChatData._id ? "text-left" : "text-right"
@@ -207,15 +207,15 @@ const downloadFile = async (url) => {
   >
     {message.messageType === "text" && (
       <>
-        <div
-          className={`${
-            message.sender !== selectedChatData._id
+      <div
+        className={`${
+          message.sender !== selectedChatData._id
               ? " bg-[#9333ea] text-white border-transparent"
-              : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
+            : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
           } border inline-block p-4 rounded-2xl my-1 max-w-[50%] break-words`}
-        >
-          {message.content}
-        </div>
+      >
+        {message.content}
+      </div>
         <div
           className={`mt-1 flex items-center gap-1 text-[0.75rem] ${
             message.sender !== selectedChatData._id ? "justify-end" : "justify-start"
@@ -234,13 +234,13 @@ const downloadFile = async (url) => {
 {
       message.messageType === "file" && (
       <>
-        <div
-          className={`${
-            message.sender !== selectedChatData._id
+      <div
+        className={`${
+          message.sender !== selectedChatData._id
               ? " bg-[#9333ea] text-white border-transparent"
-              : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
+            : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
           } border inline-block p-4 rounded-2xl my-1 max-w-[80%] break-words`}
-        >
+      >
         {checkIfImage(message.fileUrl) && (
           <div
             className="cursor-pointer"
@@ -291,10 +291,10 @@ const downloadFile = async (url) => {
             </span>
           </div>
         )}
-          {message.content && (
-            <div className="mt-2 text-sm leading-relaxed">{message.content}</div>
-          )}
-        </div>
+        {message.content && (
+          <div className="mt-2 text-sm leading-relaxed">{message.content}</div>
+        )}
+      </div>
         <div
           className={`mt-1 flex items-center gap-1 text-[0.75rem] ${
             message.sender !== selectedChatData._id ? "justify-end" : "justify-start"
@@ -307,11 +307,11 @@ const downloadFile = async (url) => {
               {renderStatusIcon(message)}
             </span>
           )}
-        </div>
+    </div>
       </>
     )}
 
-    </div>
+   </div>
 );
 
 const renderChannelMessages = (message) => {
@@ -320,26 +320,26 @@ const renderChannelMessages = (message) => {
     <div className={`mt-5 ${isOwnMessage ? "text-right" : "text-left"}`}>
       {message.messageType === "text" && (
         <>
-          <div
-            className={`${
-              message.sender._id ===userInfo.id
+      <div
+        className={`${
+          message.sender._id ===userInfo.id
                 ? " bg-[#9333ea] text-white border-transparent"
-                : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
+            : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
             } border inline-block p-4 rounded-2xl my-1 max-w-[50%] break-words ml-9`}
-          >
-            {message.content}
-          </div>
+      >
+        {message.content}
+      </div>
         </>
-      )}
+    )}
     {message.messageType === "file" && (
       <>
-        <div
-          className={`${
-            message.sender._id === userInfo.id
+      <div
+        className={`${
+          message.sender._id === userInfo.id
               ? " bg-[#9333ea] text-white border-transparent"
-              : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
+            : " bg-[#2a2b33]/5 text-white/80 border-[#ffffff]/20"
           } border inline-block p-4 rounded-2xl my-1 max-w-[80%] break-words ml-9`}
-        >
+      >
         {checkIfImage(message.fileUrl) && (
           <div
             className="cursor-pointer"
@@ -390,10 +390,10 @@ const renderChannelMessages = (message) => {
             </span>
           </div>
         )}
-          {message.content && (
-            <div className="mt-2 text-sm leading-relaxed">{message.content}</div>
-          )}
-        </div>
+        {message.content && (
+          <div className="mt-2 text-sm leading-relaxed">{message.content}</div>
+        )}
+      </div>
       </>
     )}
     {/* Single time row below bubble; include ticks for own messages */}

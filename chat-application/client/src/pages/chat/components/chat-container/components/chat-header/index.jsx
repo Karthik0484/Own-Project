@@ -24,9 +24,17 @@ const ChatHeader = () => {
   const lastSeen = selectedChatData?.lastSeen;
   const lastSeenText = lastSeen ? formatLastSeen(lastSeen) : '';
   const rawAvatar = selectedChatData?.profilePicture || selectedChatData?.profileImage || selectedChatData?.image || selectedChatData?.profileImageUrl;
-  const avatarUrl = rawAvatar
-    ? (rawAvatar.startsWith('http') ? rawAvatar : `${HOST}/${rawAvatar.replace(/^\//, '')}`)
-    : '';
+  // Avatar logic with cache busting using updatedAt
+  let avatarUrl = '';
+  if (selectedChatType === 'channel' && selectedChatData?.profilePicture) {
+    const base = selectedChatData.profilePicture.startsWith('http')
+      ? selectedChatData.profilePicture
+      : `${HOST}/channels/${selectedChatData.profilePicture.replace(/^\/?channels\//, '').replace(/^\//, '')}`;
+    const ts = selectedChatData?.updatedAt ? `?t=${new Date(selectedChatData.updatedAt).getTime()}` : '';
+    avatarUrl = `${base}${ts}`;
+  } else if (rawAvatar) {
+    avatarUrl = rawAvatar.startsWith('http') ? rawAvatar : `${HOST}/${rawAvatar.replace(/^\//, '')}`;
+  }
   const avatarInitial = selectedChatType === 'channel'
     ? (selectedChatData?.name?.[0] || '#')
     : (selectedChatData?.firstName
@@ -56,9 +64,10 @@ const ChatHeader = () => {
       const res = await apiClient.post(`/api/channel/${selectedChatData._id}/update-picture`, form, { withCredentials: true });
       if (res.status === 200 && res.data?.success && res.data?.profilePicture) {
         const profilePicture = res.data.profilePicture;
-        setSelectedChatData({ ...selectedChatData, profilePicture });
-        updateChannelInList?.(selectedChatData._id, { profilePicture });
-        socket?.emit('channel-picture-updated', { channelId: selectedChatData._id, profilePicture });
+        const updatedAt = res.data?.updatedAt || Date.now();
+        setSelectedChatData({ ...selectedChatData, profilePicture, updatedAt });
+        updateChannelInList?.(selectedChatData._id, { profilePicture, updatedAt });
+        socket?.emit('channel-picture-updated', { channelId: selectedChatData._id, profilePicture, updatedAt });
         toast.success('✅ Channel picture updated', { duration: 3000 });
       } else {
         toast.error(res.data?.error || '❌ Failed to update picture', { duration: 3000 });
@@ -127,11 +136,11 @@ const ChatHeader = () => {
 
   useEffect(() => {
     if (!socket) return;
-    const onPic = ({ channelId, profilePicture }) => {
+    const onPic = ({ channelId, profilePicture, updatedAt }) => {
       if (isChannel && selectedChatData?._id === channelId) {
-        setSelectedChatData((c) => ({ ...c, profilePicture }));
+        setSelectedChatData((c) => ({ ...c, profilePicture, updatedAt: updatedAt || Date.now() }));
       }
-      updateChannelInList?.(channelId, { profilePicture });
+      updateChannelInList?.(channelId, { profilePicture, updatedAt: updatedAt || Date.now() });
     };
     const onMembers = ({ channelId, members }) => {
       if (isChannel && selectedChatData?._id === channelId) {
@@ -167,6 +176,7 @@ const ChatHeader = () => {
                   alt="profile"
                   className="object-cover w-full h-full bg-black rounded-full"
                   loading="lazy"
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = 'none'; const fb = e.currentTarget.parentNode.querySelector('.avatar-fallback'); if (fb) fb.style.display = 'flex'; }}
                 />
               )}
               <AvatarFallback className="avatar-fallback rounded-full bg-purple-500 flex items-center justify-center text-white font-bold w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12">
@@ -203,12 +213,13 @@ const ChatHeader = () => {
             </div>
           </div>
         </div>
+        {/* Manage button and file input */}
         <div className="flex items-center jus gap-5">
           {isChannel && isAdmin && (
             <>
               <button
                 className="text-neutral-300 hover:text-white text-sm px-3 py-1 rounded-md bg-[#2a2b33]"
-                onClick={() => setShowManage((v) => !v)}
+                onClick={() => setShowManage(true)}
               >
                 Manage
               </button>
@@ -222,9 +233,12 @@ const ChatHeader = () => {
           </button>
         </div>
       </div>
+      {/* Desktop Manage Panel */}
       {isChannel && isAdmin && showManage && (
-        <div className="w-full mt-3 p-3 rounded-lg bg-[#1c1d25]">
-          <div className="flex flex-wrap items-center gap-3">
+        <div>
+          {/* Desktop: fixed panel below header */}
+          <div className="hidden md:block w-full mt-3 p-3 rounded-lg bg-[#1c1d25] z-30">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 className="px-3 py-2 rounded-md bg-[#2a2b33] text-sm hover:bg-[#3a3d49]"
@@ -233,37 +247,91 @@ const ChatHeader = () => {
               >
                 Update Channel Picture
               </button>
-            <div className="flex-1 min-w-[220px]">
-              <input
-                className="w-full rounded-md bg-[#2a2b33] p-2 text-sm placeholder:text-gray-400"
-                placeholder="Search users to add"
-                value={searchTerm}
-                onChange={(e) => handleSearchUsers(e.target.value)}
-              />
+              <div className="flex-1 min-w-[220px]">
+                <input
+                  className="w-full rounded-md bg-[#2a2b33] p-2 text-sm placeholder:text-gray-400"
+                  placeholder="Search users to add"
+                  value={searchTerm}
+                  onChange={(e) => handleSearchUsers(e.target.value)}
+                />
+              </div>
+            </div>
+            {searchTerm && (
+              <div className="mt-2 max-h-48 overflow-y-auto border border-[#2f303b] rounded-md">
+                {isSearching && <div className="px-3 py-2 text-sm text-gray-400">Searching…</div>}
+                {!isSearching && searchResults.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-gray-500">No results</div>
+                )}
+                {searchResults.map((u) => (
+                  <div key={u.id || u._id} className="flex items-center justify-between px-3 py-2 hover:bg-[#2a2b33]">
+                    <div className="truncate">
+                      <span className="text-white text-sm">{`${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown user'}</span>
+                      {u.email && <span className="text-xs text-gray-400 ml-2">{u.email}</span>}
+                    </div>
+                    <button
+                      className="text-xs px-2 py-1 rounded bg-[#3a3d49] hover:bg-[#4a4d59]"
+                      onClick={() => handleAddMember(u)}
+                    >
+                      Add
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Mobile: modal/drawer */}
+          <div className={`fixed md:hidden inset-0 z-50 flex items-end justify-center ${showManage ? '' : 'pointer-events-none'}`} style={{background: showManage ? 'rgba(20,21,30,0.65)' : 'transparent', transition: 'background 0.2s'}}>
+            <div className={`w-full max-w-md bg-[#181924] rounded-t-2xl shadow-2xl p-4 pb-6 transition-transform duration-300 ${showManage ? 'translate-y-0' : 'translate-y-full'} relative`} style={{minHeight: '40vh', maxHeight: '80vh', overflowY: 'auto'}}>
+              {/* Close button */}
+              <button
+                className="absolute top-3 right-3 text-neutral-400 hover:text-white text-2xl z-10"
+                onClick={() => setShowManage(false)}
+                aria-label="Close"
+              >
+                <RiCloseFill />
+              </button>
+              <div className="flex flex-wrap items-center gap-3 mb-3">
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-md bg-[#2a2b33] text-sm hover:bg-[#3a3d49]"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  Update Channel Picture
+                </button>
+                <div className="flex-1 min-w-[120px]">
+                  <input
+                    className="w-full rounded-md bg-[#2a2b33] p-2 text-sm placeholder:text-gray-400"
+                    placeholder="Search users to add"
+                    value={searchTerm}
+                    onChange={(e) => handleSearchUsers(e.target.value)}
+                  />
+                </div>
+              </div>
+              {searchTerm && (
+                <div className="mt-2 max-h-48 overflow-y-auto border border-[#2f303b] rounded-md">
+                  {isSearching && <div className="px-3 py-2 text-sm text-gray-400">Searching…</div>}
+                  {!isSearching && searchResults.length === 0 && (
+                    <div className="px-3 py-2 text-sm text-gray-500">No results</div>
+                  )}
+                  {searchResults.map((u) => (
+                    <div key={u.id || u._id} className="flex items-center justify-between px-3 py-2 hover:bg-[#2a2b33]">
+                      <div className="truncate">
+                        <span className="text-white text-sm">{`${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown user'}</span>
+                        {u.email && <span className="text-xs text-gray-400 ml-2">{u.email}</span>}
+                      </div>
+                      <button
+                        className="text-xs px-2 py-1 rounded bg-[#3a3d49] hover:bg-[#4a4d59]"
+                        onClick={() => handleAddMember(u)}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-          {searchTerm && (
-            <div className="mt-2 max-h-48 overflow-y-auto border border-[#2f303b] rounded-md">
-              {isSearching && <div className="px-3 py-2 text-sm text-gray-400">Searching…</div>}
-              {!isSearching && searchResults.length === 0 && (
-                <div className="px-3 py-2 text-sm text-gray-500">No results</div>
-              )}
-              {searchResults.map((u) => (
-                <div key={u.id || u._id} className="flex items-center justify-between px-3 py-2 hover:bg-[#2a2b33]">
-                  <div className="truncate">
-                    <span className="text-white text-sm">{`${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown user'}</span>
-                    {u.email && <span className="text-xs text-gray-400 ml-2">{u.email}</span>}
-                  </div>
-                  <button
-                    className="text-xs px-2 py-1 rounded bg-[#3a3d49] hover:bg-[#4a4d59]"
-                    onClick={() => handleAddMember(u)}
-                  >
-                    Add
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>

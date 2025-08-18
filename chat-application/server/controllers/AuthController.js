@@ -209,8 +209,8 @@ export const removeProfileImage = async (request, response, next) => {
         try {
           // Support stored values like "profiles/<file>" by resolving under uploads/
           const diskPath = path.resolve(process.cwd(), "uploads", user.image);
-          if (existsSync(diskPath)) {
-            unlinkSync(diskPath);
+        if (existsSync(diskPath)) {
+          unlinkSync(diskPath);
           }
         } catch (fsErr) {
           // Log but do not fail the whole request if file removal fails
@@ -221,10 +221,10 @@ export const removeProfileImage = async (request, response, next) => {
       user.image = null;
       await user.save();
 
-      return response.status(200).send("Profile image removed successfully"); 
-    } catch(error) {
+    return response.status(200).send("Profile image removed successfully"); 
+  } catch(error) {
       console.error("removeProfileImage error:", error);
-      return response.status(500).send("Internal Server Error");
+        return response.status(500).send("Internal Server Error");
     }
 };
 

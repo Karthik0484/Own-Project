@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import mongoose from "mongoose";
+import path from "path";
+import { fileURLToPath } from "url";
 import authRoutes from "./routes/AuthRoutes.js";
 import contactsRoutes from "./routes/ContactRoutes.js";
 import messageRoutes from "./routes/MessageRoutes.js";
@@ -21,6 +23,10 @@ if (!process.env.JWT_KEY) {
 const app = express();
 const port = process.env.PORT || 3001;
 const databaseURL = process.env.DATABASE_URL;
+
+// __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const allowedOrigins = [
   process.env.ORIGIN,
@@ -42,11 +48,11 @@ app.use(
   })
 );
 
-app.use("/profiles", express.static("uploads/profiles"));
-app.use("/uploads/files", express.static("uploads/files"));
-app.use("/files", express.static("uploads/files"));
-// Serve channel images
-app.use("/channels", express.static("uploads/channels"));
+app.use("/profiles", express.static(path.join(__dirname, "uploads/profiles")));
+app.use("/uploads/files", express.static(path.join(__dirname, "uploads/files")));
+app.use("/files", express.static(path.join(__dirname, "uploads/files")));
+// Serve channel images from an absolute path to avoid CWD issues
+app.use("/channels", express.static(path.join(__dirname, "uploads/channels")));
 
 app.get("/",(req,res) => {
     res.json("Hello")

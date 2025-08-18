@@ -45,9 +45,17 @@ const ContactList = ({ conversations, isChannel = false}) => {
                     const displayName = isChannel
                         ? (conversation.name || 'Unnamed Channel')
                         : `${conversation.firstName || ''} ${conversation.lastName || ''}`.trim();
-                    const avatarUrl = isChannel
-                        ? (conversation.profilePicture || conversation.image || conversation.profileImage)
-                        : (conversation.profileImage || conversation.image);
+                    let avatarUrl = '';
+                    if (isChannel && conversation.profilePicture) {
+                        const base = conversation.profilePicture.startsWith('http')
+                            ? conversation.profilePicture
+                            : `${HOST}/channels/${conversation.profilePicture.replace(/^\/?channels\//, '').replace(/^\//, '')}`;
+                        const ts = conversation.updatedAt ? `?t=${new Date(conversation.updatedAt).getTime()}` : '';
+                        avatarUrl = `${base}${ts}`;
+                    } else if (conversation.image || conversation.profileImage) {
+                        const raw = conversation.image || conversation.profileImage;
+                        avatarUrl = raw.startsWith('http') ? raw : `${HOST}/${raw.replace(/^\//, '')}`;
+                    }
                     const avatarInitial = isChannel
                         ? (conversation.name ? conversation.name[0].toUpperCase() : '#')
                         : conversation.firstName
@@ -67,7 +75,7 @@ const ContactList = ({ conversations, isChannel = false}) => {
                                 <div className="rounded-full flex items-center justify-center text-white font-bold overflow-hidden border border-gray-600 dark:border-gray-300 bg-purple-500 w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12">
                                     {avatarUrl && (
                                         <img
-                                            src={avatarUrl.startsWith('http') ? avatarUrl : `${HOST}/${avatarUrl}`}
+                                            src={avatarUrl}
                                             alt={displayName}
                                             className="w-full h-full rounded-full object-cover"
                                             loading="lazy"

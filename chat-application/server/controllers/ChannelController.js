@@ -5,7 +5,7 @@ import multer from "multer";
 import { existsSync, mkdirSync, renameSync, unlinkSync } from "fs";
 import path from "path";
 
- export const createChannel = async (request, response, next) => {
+export const createChannel = async (request, response, next) => {
     try{
      const { name, members } = request.body;
      const userId = request.userId;
@@ -40,12 +40,12 @@ import path from "path";
     }
 };
 
- export const getUserChannels = async (request, response, next) => {
+export const getUserChannels = async (request, response, next) => {
     try{
       const userId = request.userId;
-      const channels = await Channel.find({
-         $or :[{createdBy: userId}, {members: userId}],
-      }).sort({ updatedAt: -1 });
+     const channels = await Channel.find({
+        $or :[{createdBy: userId}, {members: userId}],
+     }).sort({ updatedAt: -1 });
   
         return response.status(200).json({ success: true, channels });
   } catch(error) {
@@ -64,7 +64,7 @@ export const getChannelMessages = async (request, response, next) => {
                 select: 'firstName lastName email _id image color',
              },
         });
-      if(!channel) {
+     if(!channel) {
             return response.status(404).json({ success: false, error: "Channel not found"});
         }
         const messages = channel.messages;
@@ -105,19 +105,29 @@ export const updateChannelPicture = async (req, res) => {
     if (String(channel.adminId) !== String(userId)) return res.status(403).json({ success: false, error: "Only admin can update picture" });
 
     if (!req.file) return res.status(400).json({ success: false, error: "Image file is required" });
-    const targetRel = `channels/${req.file.filename}`;
+    // Store only the filename in the DB for consistency
+    const filename = req.file.filename;
+    const targetRel = `channels/${filename}`;
 
     // delete previous if exists
     if (channel.profilePicture) {
-      const oldAbs = path.join("uploads", channel.profilePicture);
+      const oldAbs = path.join("uploads", "channels", channel.profilePicture);
       if (existsSync(oldAbs)) {
         try { unlinkSync(oldAbs); } catch { /* ignore */ }
       }
     }
 
-    channel.profilePicture = targetRel;
+    // Persist only the filename; clients will prefix with /channels
+    channel.profilePicture = filename;
     await channel.save();
-    return res.status(200).json({ success: true, channelId, profilePicture: channel.profilePicture });
+    // Append cache-busting timestamp so clients refresh cached image
+    const cacheBuster = Date.now();
+    // Fire realtime event to all subscribers
+    try {
+      const { emitChannelPictureUpdated } = await import("../socket.js");
+      emitChannelPictureUpdated?.({ channelId, profilePicture: channel.profilePicture, updatedAt: cacheBuster });
+    } catch {}
+    return res.status(200).json({ success: true, channelId, profilePicture: channel.profilePicture, updatedAt: cacheBuster });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, error: "Internal Server Error" });
@@ -176,5 +186,5 @@ export const addChannelMembers = async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, error: "Internal Server Error" });
-  }
+    }
 };
