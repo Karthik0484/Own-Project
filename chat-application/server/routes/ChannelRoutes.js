@@ -3,6 +3,7 @@ import { verifyToken } from '../middlewares/AuthMiddleware.js';
 import { createChannel } from '../controllers/ChannelController.js';
 import { getUserChannels } from '../controllers/ChannelController.js';
 import { updateChannelPicture, addChannelMembers, channelUpload } from '../controllers/ChannelController.js';
+import { removeChannelMember } from '../controllers/ChannelController.js';
 import { getChannelInfo, updateChannelDescription } from '../controllers/ChannelController.js';
 import Channel from '../models/ChannelModel.js';
 import { get } from 'mongoose';
@@ -19,6 +20,11 @@ channelRoutes.post("/channels/:channelId/picture", verifyToken, channelUpload.si
 channelRoutes.post("/:channelId/add-members", verifyToken, addChannelMembers);
 // Support alternate path ordering just in case clients call /add-members/:channelId
 channelRoutes.post("/add-members/:channelId", verifyToken, addChannelMembers);
+// Remove member endpoints
+channelRoutes.delete("/channels/:channelId/members/:userId", verifyToken, removeChannelMember);
+channelRoutes.post("/channels/:channelId/remove-member", verifyToken, removeChannelMember);
+channelRoutes.delete("/:channelId/members/:userId", verifyToken, removeChannelMember);
+channelRoutes.post("/:channelId/remove-member", verifyToken, removeChannelMember);
 // Channel info and description
 channelRoutes.get("/channels/:channelId/info", verifyToken, getChannelInfo);
 // Also support base-style path so full route can be /api/channel/:channelId/info

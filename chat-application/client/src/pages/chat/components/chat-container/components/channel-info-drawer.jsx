@@ -1,19 +1,26 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/store";
 import { apiClient } from "@/lib/api-client";
-import { HOST } from "@/utils/constants";
+import { HOST, SEARCH_CONTACTS_ROUTES } from "@/utils/constants";
 import { useSocket } from "@/context/SocketContext";
 import { toast } from "sonner";
 
 const ChannelInfoDrawer = ({ open, onClose }) => {
   const { selectedChatData, userInfo } = useAppStore();
   const socket = useSocket();
+  const navigate = useNavigate();
   const channelId = selectedChatData?._id;
   const isAdmin = selectedChatData && (String(selectedChatData.adminId || selectedChatData.createdBy) === String(userInfo?.id));
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [descDraft, setDescDraft] = useState("");
+  // Add members manage state (separate button UI)
+  const [showAdd, setShowAdd] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const loadInfo = useCallback(async () => {
     if (!channelId) return;
@@ -124,9 +131,78 @@ const ChannelInfoDrawer = ({ open, onClose }) => {
           </div>
         </div>
 
-        {isAdmin && !editing && (
-          <div className="flex gap-2">
-            <button className="px-3 py-1 rounded bg-[#2a2b33] hover:bg-[#3a3d49]" onClick={() => setEditing(true)}>Edit Description</button>
+        {!editing && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button className="px-3 py-1 rounded bg-[#2a2b33] hover:bg-[#3a3d49]" onClick={() => navigate('/profile')}>Update Profile</button>
+            {isAdmin && (
+              <>
+                <button className="px-3 py-1 rounded bg-[#6c46f5] hover:bg-[#7a58f7]" onClick={() => setEditing(true)}>Edit Description</button>
+                <button className="px-3 py-1 rounded bg-[#2a2b33] hover:bg-[#3a3d49]" onClick={() => setShowAdd((v) => !v)}>
+                  {showAdd ? 'Close Add Members' : 'Add Members'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {isAdmin && showAdd && (
+          <div className="mt-2 p-3 rounded-lg bg-[#151622] border border-[#2f303b] space-y-2">
+            <input
+              value={searchTerm}
+              onChange={async (e) => {
+                const term = e.target.value;
+                setSearchTerm(term);
+                if (!term.trim()) { setSearchResults([]); return; }
+                try {
+                  setIsSearching(true);
+                  const res = await apiClient.post(SEARCH_CONTACTS_ROUTES, { searchTerm: term }, { withCredentials: true });
+                  setSearchResults(Array.isArray(res.data?.contacts) ? res.data.contacts : []);
+                } finally { setIsSearching(false); }
+              }}
+              placeholder="Search users to add"
+              className="w-full p-2 rounded bg-[#1b1c24] border border-[#2f303b]"
+            />
+            <div className="max-h-48 overflow-y-auto space-y-1">
+              {isSearching && <div className="text-sm text-neutral-400">Searching…</div>}
+              {!isSearching && searchResults.length === 0 && searchTerm && (
+                <div className="text-sm text-neutral-400">No results</div>
+              )}
+              {searchResults.map((u) => {
+                const uid = u.id || u._id;
+                const name = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'User';
+                return (
+                  <div key={uid} className="flex items-center justify-between p-2 rounded bg-[#1b1c24] border border-[#2f303b]">
+                    <div className="truncate text-sm">{name}</div>
+                    <button
+                      className="text-xs px-2 py-1 rounded bg-[#2a2b33] hover:bg-[#3a3d49]"
+                      onClick={async () => {
+                        try {
+                          // Primary add route
+                          let res = await apiClient.post(`/api/channel/${info.id}/add-members`, { userId: uid }, { withCredentials: true });
+                          // Fallback
+                          if (res?.status === 404 || res?.data?.success === undefined) {
+                            res = await apiClient.post(`/api/channel/add-members/${info.id}`, { userId: uid }, { withCredentials: true });
+                          }
+                          if (res.status === 200 && res.data?.success && Array.isArray(res.data?.members)) {
+                            toast.success(`✅ ${name} added to channel`, { duration: 2500 });
+                            setSearchTerm(''); setSearchResults([]);
+                            // Refetch to update full members list
+                            await loadInfo();
+                            socket?.emit('channel:members:update', { channelId: info.id });
+                          } else {
+                            toast.error(res.data?.error || '❌ Failed to add user. Please try again.', { duration: 3000 });
+                          }
+                        } catch (err) {
+                          toast.error('❌ Failed to add user. Please try again.', { duration: 3000 });
+                        }
+                      }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -153,9 +229,56 @@ const ChannelInfoDrawer = ({ open, onClose }) => {
                     </div>
                     <div className="text-sm truncate">{m.username}</div>
                   </div>
-                  {m.isAdmin && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#3b2276] text-white">Admin</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {m.isAdmin && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#6c46f5] text-white" title="Admin">Admin</span>
+                    )}
+                    {isAdmin && !m.isAdmin && (
+                      <button
+                        className="text-[11px] px-2 py-0.5 rounded bg-[#2a2b33] hover:bg-[#3a3d49]"
+                        onClick={async () => {
+                          try {
+                            // Try DELETE; fallback to POST if 404
+                            const urlDel = `/api/channel/channels/${info.id}/members/${m.id}`;
+                            const urlDelAlt = `/api/channel/${info.id}/members/${m.id}`;
+                            const urlPost = `/api/channel/channels/${info.id}/remove-member`;
+                            const urlPostAlt = `/api/channel/${info.id}/remove-member`;
+                            let ok = false;
+                            try {
+                              const r = await apiClient.delete(urlDel, { withCredentials: true });
+                              ok = r.status === 200 && r.data?.success;
+                            } catch (e) {
+                              if (e?.response?.status === 404) {
+                                try {
+                                  const r2 = await apiClient.delete(urlDelAlt, { withCredentials: true });
+                                  ok = r2.status === 200 && r2.data?.success;
+                                } catch (e2) {}
+                              }
+                            }
+                            if (!ok) {
+                              const r3 = await apiClient.post(urlPost, { userId: m.id }, { withCredentials: true });
+                              ok = r3.status === 200 && r3.data?.success;
+                              if (!ok) {
+                                const r4 = await apiClient.post(urlPostAlt, { userId: m.id }, { withCredentials: true });
+                                ok = r4.status === 200 && r4.data?.success;
+                              }
+                            }
+                            if (ok) {
+                              setInfo((prev) => prev ? { ...prev, members: prev.members.filter((x) => x.id !== m.id) } : prev);
+                              toast.success(`✅ ${m.username} removed from channel`, { duration: 2500 });
+                              socket?.emit('channel:members:update', { channelId: info.id });
+                            } else {
+                              toast.error('❌ Failed to remove user. Please try again.', { duration: 3000 });
+                            }
+                          } catch (err) {
+                            toast.error('❌ Failed to remove user. Please try again.', { duration: 3000 });
+                          }
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}

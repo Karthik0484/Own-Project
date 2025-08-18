@@ -13,12 +13,9 @@ import { toast } from 'sonner';
 const ChatHeader = ({ onHeaderClick }) => {
   const { closeChat, selectedChatData, selectedChatType, onlineUsers, userInfo, setSelectedChatData, updateChannelInList } = useAppStore();
   const socket = useSocket();
-  const [showManage, setShowManage] = useState(false);
   const fileRef = useRef(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
   const navigate = useNavigate();
+  const [headerActive, setHeaderActive] = useState(false);
 
   const isOnline = selectedChatData?._id && onlineUsers?.[selectedChatData._id];
   const lastSeen = selectedChatData?.lastSeen;
@@ -77,15 +74,7 @@ const ChatHeader = ({ onHeaderClick }) => {
     }
   };
 
-  const handleSearchUsers = async (term) => {
-    setSearchTerm(term);
-    if (!term.trim()) { setSearchResults([]); return; }
-    try {
-      setIsSearching(true);
-      const res = await apiClient.post(SEARCH_CONTACTS_ROUTES, { searchTerm: term }, { withCredentials: true });
-      setSearchResults(res.data?.contacts || []);
-    } finally { setIsSearching(false); }
-  };
+  // manage search removed from header; handled in drawer
 
   const handleAddMember = async (userOrId) => {
     if (!isChannel || !isAdmin) return;
@@ -155,8 +144,21 @@ const ChatHeader = ({ onHeaderClick }) => {
     };
   }, [socket, isChannel, selectedChatData?._id]);
 
+  const handleHeaderClick = () => {
+    setHeaderActive(true);
+    setTimeout(() => setHeaderActive(false), 180);
+    onHeaderClick?.();
+  };
+
   return (
-    <div className="h-[10vh] border-b-2 border-[#2f303b] flex items-center justify-between px-4 sm:px-6 md:px-10 xl:px-20 chat-header" onClick={() => onHeaderClick?.()}>
+    <div
+      className={`h-[10vh] border-b-2 border-[#2f303b] flex items-center justify-between px-4 sm:px-6 md:px-10 xl:px-20 chat-header transition-colors duration-150 ${headerActive ? 'ring-2 ring-[#6c46f5]/40' : ''} hover:bg-[#20212b] cursor-pointer group`}
+      onClick={handleHeaderClick}
+      title="Click to view channel info"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleHeaderClick(); }}
+    >
       <div className="flex gap-3 sm:gap-5 items-center w-full justify-between">
         {/* Back button on mobile to show sidebar */}
         <button
@@ -194,9 +196,19 @@ const ChatHeader = ({ onHeaderClick }) => {
             </Avatar>
           </div>
           <div>
-            <div className="font-semibold">
+            <div className="font-semibold flex items-center gap-1">
               {selectedChatType === "channel" && (
-                <span>{selectedChatData?.name || 'Channel'}</span>
+                <>
+                  <span>{selectedChatData?.name || 'Channel'}</span>
+                  <span
+                    className="ml-1 inline-flex items-center h-5 rounded-full bg-gradient-to-r from-[#6c46f5] to-[#8b5cf6] text-white text-[10px] px-1.5 shadow-sm transform transition-all duration-200 group-hover:px-2 group-hover:gap-1 group-hover:scale-[1.03]"
+                    aria-hidden="true"
+                    title="Click to view channel info"
+                  >
+                    <span className="leading-none">ℹ️</span>
+                    <span className="hidden sm:inline leading-none">Info</span>
+                  </span>
+                </>
               )}
               {selectedChatType === "contact" && selectedChatData?.firstName ? (
                 <span>{`${selectedChatData.firstName} ${selectedChatData.lastName}`}</span>
@@ -213,19 +225,7 @@ const ChatHeader = ({ onHeaderClick }) => {
             </div>
           </div>
         </div>
-        {/* Manage button and file input */}
         <div className="flex items-center jus gap-5">
-          {isChannel && isAdmin && (
-            <>
-              <button
-                className="text-neutral-300 hover:text-white text-sm px-3 py-1 rounded-md bg-[#2a2b33]"
-                onClick={(e) => { e.stopPropagation(); setShowManage(true); }}
-              >
-                Manage
-              </button>
-              <input ref={fileRef} type="file" className="hidden" accept=".png,.jpg,.jpeg,.webp,.svg" onChange={handleUpdatePicture} />
-            </>
-          )}
           <button className="text-neutral-500 focus:border-none focus:outline-none focus:text-white duration-300 transition-all" 
             onClick={handleClose}
           >
@@ -233,107 +233,7 @@ const ChatHeader = ({ onHeaderClick }) => {
           </button>
         </div>
       </div>
-      {/* Desktop Manage Panel */}
-      {isChannel && isAdmin && showManage && (
-        <div>
-          {/* Desktop: fixed panel below header */}
-          <div className="hidden md:block w-full mt-3 p-3 rounded-lg bg-[#1c1d25] z-30">
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                className="px-3 py-2 rounded-md bg-[#2a2b33] text-sm hover:bg-[#3a3d49]"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => fileRef.current?.click()}
-              >
-                Update Channel Picture
-              </button>
-              <div className="flex-1 min-w-[220px]">
-                <input
-                  className="w-full rounded-md bg-[#2a2b33] p-2 text-sm placeholder:text-gray-400"
-                  placeholder="Search users to add"
-                  value={searchTerm}
-                  onChange={(e) => handleSearchUsers(e.target.value)}
-                />
-              </div>
-            </div>
-            {searchTerm && (
-              <div className="mt-2 max-h-48 overflow-y-auto border border-[#2f303b] rounded-md">
-                {isSearching && <div className="px-3 py-2 text-sm text-gray-400">Searching…</div>}
-                {!isSearching && searchResults.length === 0 && (
-                  <div className="px-3 py-2 text-sm text-gray-500">No results</div>
-                )}
-                {searchResults.map((u) => (
-                  <div key={u.id || u._id} className="flex items-center justify-between px-3 py-2 hover:bg-[#2a2b33]">
-                    <div className="truncate">
-                      <span className="text-white text-sm">{`${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown user'}</span>
-                      {u.email && <span className="text-xs text-gray-400 ml-2">{u.email}</span>}
-                    </div>
-                    <button
-                      className="text-xs px-2 py-1 rounded bg-[#3a3d49] hover:bg-[#4a4d59]"
-                      onClick={() => handleAddMember(u)}
-                    >
-                      Add
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          {/* Mobile: modal/drawer */}
-          <div className={`fixed md:hidden inset-0 z-50 flex items-end justify-center ${showManage ? '' : 'pointer-events-none'}`} style={{background: showManage ? 'rgba(20,21,30,0.65)' : 'transparent', transition: 'background 0.2s'}}>
-            <div className={`w-full max-w-md bg-[#181924] rounded-t-2xl shadow-2xl p-4 pb-6 transition-transform duration-300 ${showManage ? 'translate-y-0' : 'translate-y-full'} relative`} style={{minHeight: '40vh', maxHeight: '80vh', overflowY: 'auto'}}>
-              {/* Close button */}
-              <button
-                className="absolute top-3 right-3 text-neutral-400 hover:text-white text-2xl z-10"
-                onClick={() => setShowManage(false)}
-                aria-label="Close"
-              >
-                <RiCloseFill />
-              </button>
-              <div className="flex flex-wrap items-center gap-3 mb-3">
-                <button
-                  type="button"
-                  className="px-3 py-2 rounded-md bg-[#2a2b33] text-sm hover:bg-[#3a3d49]"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  Update Channel Picture
-                </button>
-                <div className="flex-1 min-w-[120px]">
-                  <input
-                    className="w-full rounded-md bg-[#2a2b33] p-2 text-sm placeholder:text-gray-400"
-                    placeholder="Search users to add"
-                    value={searchTerm}
-                    onChange={(e) => handleSearchUsers(e.target.value)}
-                  />
-                </div>
-              </div>
-              {searchTerm && (
-                <div className="mt-2 max-h-48 overflow-y-auto border border-[#2f303b] rounded-md">
-                  {isSearching && <div className="px-3 py-2 text-sm text-gray-400">Searching…</div>}
-                  {!isSearching && searchResults.length === 0 && (
-                    <div className="px-3 py-2 text-sm text-gray-500">No results</div>
-                  )}
-                  {searchResults.map((u) => (
-                    <div key={u.id || u._id} className="flex items-center justify-between px-3 py-2 hover:bg-[#2a2b33]">
-                      <div className="truncate">
-                        <span className="text-white text-sm">{`${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown user'}</span>
-                        {u.email && <span className="text-xs text-gray-400 ml-2">{u.email}</span>}
-                      </div>
-                      <button
-                        className="text-xs px-2 py-1 rounded bg-[#3a3d49] hover:bg-[#4a4d59]"
-                        onClick={() => handleAddMember(u)}
-                      >
-                        Add
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      
     </div>
   );
 };

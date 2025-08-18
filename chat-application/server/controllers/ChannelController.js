@@ -194,6 +194,49 @@ export const addChannelMembers = async (req, res) => {
     }
 };
 
+export const removeChannelMember = async (req, res) => {
+  try {
+    const { channelId, userId } = { channelId: req.params.channelId, userId: req.params.userId || req.body?.userId };
+    const requesterId = req.userId;
+    if (!mongoose.Types.ObjectId.isValid(channelId) || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, error: "Invalid channelId or userId" });
+    }
+    const ch = await Channel.findById(channelId).select("_id adminId createdBy members");
+    if (!ch) return res.status(404).json({ success: false, error: "Channel not found" });
+    // Backward compatibility: ensure adminId present
+    if (!ch.adminId && ch.createdBy) {
+      ch.adminId = ch.createdBy;
+      await ch.save();
+    }
+    if (String(ch.adminId) !== String(requesterId)) {
+      return res.status(403).json({ success: false, error: "Only admin can remove members" });
+    }
+    // Prevent removing admin
+    if (String(ch.adminId) === String(userId)) {
+      return res.status(400).json({ success: false, error: "Cannot remove channel admin" });
+    }
+    // If user is not a member, return no-op
+    const isMember = (ch.members || []).map(String).includes(String(userId));
+    if (!isMember) {
+      return res.status(200).json({ success: true, channelId, members: ch.members });
+    }
+    const updated = await Channel.findByIdAndUpdate(
+      channelId,
+      { $pull: { members: userId } },
+      { new: true }
+    ).select("_id members adminId");
+    // Emit realtime update
+    try {
+      const { emitChannelMembersUpdate } = await import("../socket.js");
+      emitChannelMembersUpdate?.({ channelId, members: updated.members.map(String) });
+    } catch {}
+    return res.status(200).json({ success: true, channelId, members: updated.members });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+};
+
 export const getChannelInfo = async (req, res) => {
   try {
     const { channelId } = req.params;
@@ -252,6 +295,10 @@ export const updateChannelDescription = async (req, res) => {
     }
     const ch = await Channel.findById(channelId);
     if (!ch) return res.status(404).json({ success: false, error: "Channel not found" });
+    // Backward compatibility: if adminId missing, treat creator as admin
+    if (!ch.adminId && ch.createdBy) {
+      ch.adminId = ch.createdBy;
+    }
     const adminId = ch.adminId || ch.createdBy;
     if (String(adminId) !== String(userId)) {
       return res.status(403).json({ success: false, error: "Only admin can update description" });

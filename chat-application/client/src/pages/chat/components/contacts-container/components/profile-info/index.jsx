@@ -36,13 +36,21 @@ const ProfileInfo = () => {
         <div className="flex gap-3 items-center justify-center">
             <div className="relative flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12">
               {userInfo?.image ? (
-                <img
-                  src={userInfo.image.startsWith('http') ? userInfo.image : `${HOST}/${userInfo.image}`}
-                  alt="profile"
-                  loading="lazy"
-                  className="rounded-full object-cover border border-gray-300 w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12"
-                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = ''; const fb = e.currentTarget.parentNode.querySelector('.avatar-fallback'); if (fb) fb.style.display = 'flex'; }}
-                />
+                (() => {
+                  const raw = (userInfo.image || '').replace(/^\//, '');
+                  const built = raw.startsWith('http')
+                    ? raw
+                    : `${HOST}/${raw.startsWith('profiles/') ? raw : `profiles/${raw}`}`;
+                  return (
+                    <img
+                      src={built}
+                      alt="profile"
+                      loading="lazy"
+                      className="rounded-full object-cover border border-gray-300 w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12"
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = ''; const fb = e.currentTarget.parentNode.querySelector('.avatar-fallback'); if (fb) fb.style.display = 'flex'; }}
+                    />
+                  );
+                })()
               ) : null}
               <div className={`avatar-fallback rounded-full bg-purple-500 flex items-center justify-center text-white font-bold w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 ${userInfo?.image ? 'hidden' : ''}`}
                 style={{ position: 'absolute', top: 0, left: 0 }}
