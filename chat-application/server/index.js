@@ -10,6 +10,7 @@ import contactsRoutes from "./routes/ContactRoutes.js";
 import messageRoutes from "./routes/MessageRoutes.js";
 import setupSocket from "./socket.js";
 import channelRoutes from "./routes/ChannelRoutes.js";
+import Channel from "./models/ChannelModel.js";
 
 dotenv.config();
 
@@ -53,6 +54,20 @@ app.use("/uploads/files", express.static(path.join(__dirname, "uploads/files")))
 app.use("/files", express.static(path.join(__dirname, "uploads/files")));
 // Serve channel images from an absolute path to avoid CWD issues
 app.use("/channels", express.static(path.join(__dirname, "uploads/channels")));
+
+// Serve channel picture by channelId
+app.get("/channels/:channelId/picture", async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const ch = await Channel.findById(channelId).select("profilePicture");
+    if (!ch || !ch.profilePicture) return res.status(404).end();
+    const abs = path.join(__dirname, "uploads", "channels", ch.profilePicture);
+    res.set("Cache-Control", "no-store");
+    return res.sendFile(abs);
+  } catch (e) {
+    return res.status(404).end();
+  }
+});
 
 app.get("/",(req,res) => {
     res.json("Hello")

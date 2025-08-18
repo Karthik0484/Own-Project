@@ -5,6 +5,7 @@ const channelSchema = new mongoose.Schema({
     adminId: { type: mongoose.Schema.ObjectId, ref: "User", required: true },
     members: [{ type: mongoose.Schema.ObjectId, ref: "User", required: true }],
     createdBy: { type: mongoose.Schema.ObjectId, ref: "User", required: true },
+    description: { type: String, default: "" },
     profilePicture: { type: String, default: null },
     messages: [{ type: mongoose.Schema.Types.ObjectId, ref: "Messages" }],
 }, { timestamps: true });

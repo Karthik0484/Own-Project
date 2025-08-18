@@ -10,7 +10,7 @@ import { useSocket } from '@/context/SocketContext';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 
-const ChatHeader = () => {
+const ChatHeader = ({ onHeaderClick }) => {
   const { closeChat, selectedChatData, selectedChatType, onlineUsers, userInfo, setSelectedChatData, updateChannelInList } = useAppStore();
   const socket = useSocket();
   const [showManage, setShowManage] = useState(false);
@@ -156,7 +156,7 @@ const ChatHeader = () => {
   }, [socket, isChannel, selectedChatData?._id]);
 
   return (
-    <div className="h-[10vh] border-b-2 border-[#2f303b] flex items-center justify-between px-4 sm:px-6 md:px-10 xl:px-20">
+    <div className="h-[10vh] border-b-2 border-[#2f303b] flex items-center justify-between px-4 sm:px-6 md:px-10 xl:px-20 chat-header" onClick={() => onHeaderClick?.()}>
       <div className="flex gap-3 sm:gap-5 items-center w-full justify-between">
         {/* Back button on mobile to show sidebar */}
         <button
@@ -219,7 +219,7 @@ const ChatHeader = () => {
             <>
               <button
                 className="text-neutral-300 hover:text-white text-sm px-3 py-1 rounded-md bg-[#2a2b33]"
-                onClick={() => setShowManage(true)}
+                onClick={(e) => { e.stopPropagation(); setShowManage(true); }}
               >
                 Manage
               </button>

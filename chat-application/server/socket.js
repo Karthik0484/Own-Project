@@ -179,6 +179,19 @@ export default function setupSocket(server) {
     
     socket.on("send-channel-message", sendChannelMessage);
 
+    // channel metadata updates
+    socket.on("channel:update", ({ channelId, description, pictureUrl, name }) => {
+      const payload = { channelId };
+      if (description !== undefined) payload.description = description;
+      if (pictureUrl !== undefined) payload.pictureUrl = pictureUrl;
+      if (name !== undefined) payload.name = name;
+      io.to(String(channelId)).emit("channel:update", payload);
+    });
+
+    socket.on("channel:members:update", ({ channelId, members }) => {
+      io.to(String(channelId)).emit("channel:members:update", { channelId, members });
+    });
+
     // real-time: channel picture updated (include cache-busting timestamp)
     socket.on("channel-picture-updated", ({ channelId, profilePicture, updatedAt }) => {
       const payload = { channelId, profilePicture };
@@ -239,4 +252,18 @@ export function emitChannelPictureUpdated({ channelId, profilePicture, updatedAt
   const payload = { channelId, profilePicture };
   if (updatedAt) payload.updatedAt = updatedAt;
   ioRef.to(String(channelId)).emit("channel-picture-updated", payload);
+}
+
+export function emitChannelUpdate({ channelId, description, pictureUrl, name }) {
+  if (!ioRef) return;
+  const payload = { channelId };
+  if (description !== undefined) payload.description = description;
+  if (pictureUrl !== undefined) payload.pictureUrl = pictureUrl;
+  if (name !== undefined) payload.name = name;
+  ioRef.to(String(channelId)).emit("channel:update", payload);
+}
+
+export function emitChannelMembersUpdate({ channelId, members }) {
+  if (!ioRef) return;
+  ioRef.to(String(channelId)).emit("channel:members:update", { channelId, members });
 }

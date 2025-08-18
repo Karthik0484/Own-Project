@@ -181,10 +181,91 @@ export const addChannelMembers = async (req, res) => {
       { $addToSet: { members: userIdToAdd } },
       { new: true }
     ).select("_id members adminId profilePicture name");
+    // notify listeners
+    try {
+      const { emitChannelMembersUpdate } = await import("../socket.js");
+      emitChannelMembersUpdate?.({ channelId, members: updated.members.map(String) });
+    } catch {}
 
     return res.status(200).json({ success: true, channelId, user: addedUser, members: updated.members });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, error: "Internal Server Error" });
     }
+};
+
+export const getChannelInfo = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(channelId)) {
+      return res.status(400).json({ success: false, error: "Invalid channelId" });
+    }
+    const ch = await Channel.findById(channelId).select("name description adminId createdBy members profilePicture");
+    if (!ch) return res.status(404).json({ success: false, error: "Channel not found" });
+    const pictureUrl = ch.profilePicture ? `channels/${ch.profilePicture}` : null;
+    const ensureIds = Array.from(new Set([
+      ...(Array.isArray(ch.members) ? ch.members.map((m) => String(m && m._id ? m._id : m)) : []),
+      String(ch.adminId || ""),
+      String(ch.createdBy || ""),
+    ].filter(Boolean)));
+    const users = await User.find({ _id: { $in: ensureIds } }).select("_id firstName lastName email image");
+    const userMap = new Map(users.map((u) => [String(u._id), u]));
+    let members = ensureIds.map((id) => {
+      const u = userMap.get(id);
+      if (!u) return { id, username: "Unknown", profilePic: null, isAdmin: String(ch.adminId) === String(id) };
+      const username = (u.firstName && u.lastName) ? `${u.firstName} ${u.lastName}` : (u.firstName || u.lastName || u.email);
+      return { id: String(u._id), username, profilePic: u.image || null, isAdmin: String(ch.adminId) === String(u._id) };
+    });
+    // Fallback: if we somehow built an empty array, try populate-based read
+    if (!members.length) {
+      const populated = await Channel.findById(channelId).populate("members", "_id firstName lastName email image").select("adminId members");
+      if (populated && Array.isArray(populated.members)) {
+        members = populated.members.map((m) => ({
+          id: String(m._id),
+          username: (m.firstName && m.lastName) ? `${m.firstName} ${m.lastName}` : (m.firstName || m.lastName || m.email),
+          profilePic: m.image || null,
+          isAdmin: String(populated.adminId) === String(m._id),
+        }));
+      }
+    }
+    return res.status(200).json({
+      success: true,
+      id: String(ch._id),
+      name: ch.name,
+      description: ch.description || "",
+      pictureUrl,
+      members,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+};
+
+export const updateChannelDescription = async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { description } = req.body || {};
+    const userId = req.userId;
+    if (!mongoose.Types.ObjectId.isValid(channelId)) {
+      return res.status(400).json({ success: false, error: "Invalid channelId" });
+    }
+    const ch = await Channel.findById(channelId);
+    if (!ch) return res.status(404).json({ success: false, error: "Channel not found" });
+    const adminId = ch.adminId || ch.createdBy;
+    if (String(adminId) !== String(userId)) {
+      return res.status(403).json({ success: false, error: "Only admin can update description" });
+    }
+    ch.description = description || "";
+    await ch.save();
+    // notify listeners
+    try {
+      const { emitChannelUpdate } = await import("../socket.js");
+      emitChannelUpdate?.({ channelId, description: ch.description });
+    } catch {}
+    return res.status(200).json({ success: true, description: ch.description });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
 };
