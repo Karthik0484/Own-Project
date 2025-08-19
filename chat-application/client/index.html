@@ -9,5 +9,22 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // Register Firebase Messaging service worker at root
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/firebase-messaging-sw.js').catch(function (err) {
+            console.warn('SW registration failed:', err);
+          });
+        });
+        // Handle navigation requests from SW when a notification is clicked
+        navigator.serviceWorker.addEventListener('message', function (event) {
+          if (event && event.data && event.data.__PUSH_NAV__) {
+            var url = event.data.__PUSH_NAV__;
+            if (url) window.location.href = url;
+          }
+        });
+      }
+    </script>
   </body>
 </html>

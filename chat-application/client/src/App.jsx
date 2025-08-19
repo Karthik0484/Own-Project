@@ -7,6 +7,8 @@ import Profile from './pages/profile';
 import { useAppStore } from './store';
 import { apiClient } from './lib/api-client';
 import { useState } from "react";
+import NotificationToast from './components/notification-toast.jsx';
+import { listenForegroundNotifications } from '@/services/notifications';
 
 // Defining Private Route and Auth Route.
 
@@ -29,6 +31,11 @@ const App = () => {
   useEffect(() =>{
     initializeAuth(); // <-- Rehydrate from localStorage on app load
   }, [initializeAuth]);
+
+  // Attach Firebase foreground onMessage handler once on mount
+  useEffect(() => {
+    listenForegroundNotifications();
+  }, []);
 
   useEffect(() =>{
     const token = localStorage.getItem('authToken');
@@ -101,6 +108,7 @@ const App = () => {
        } />
       <Route path="*" element={<Navigate to="/auth" />} />
      </Routes>
+     <NotificationToast />
     </BrowserRouter>
   );
 };

@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import Message from "./models/MessagesModel.js";
 import User from "./models/UserModel.js";
 import channel from "./models/ChannelModel.js";
+import { sendToUsers } from "./push/fcm.js";
 
 const allowedOrigins = [
   process.env.ORIGIN,
@@ -83,6 +84,25 @@ export default function setupSocket(server) {
             // Notify sender that message is sent
             io.to(senderSocketId).emit("message_status_update", { messageId: createdMessage._id, status: "sent" });
         }
+        // Push notification for DM (recipient only)
+        try {
+          const senderId = String(message.sender);
+          const recipientId = String(message.recipient);
+          const preview = (message.content || '').slice(0, 60) || '📎 Attachment';
+          const senderName = `${messageData?.sender?.firstName || ''} ${messageData?.sender?.lastName || ''}`.trim() || 'New message';
+          const avatar = messageData?.sender?.image ? `${process.env.ORIGIN || ''}/${messageData.sender.image}` : '';
+          await sendToUsers({
+            userIds: [recipientId],
+            title: `${senderName} • Direct message`,
+            body: preview,
+            image: avatar,
+            url: `/chat/${recipientId}`,
+            type: 'dm',
+            extra: { chatId: recipientId, senderId, senderName, preview, avatar },
+            priority: 'high',
+            ttlSec: 3600,
+          });
+        } catch (e) { console.error('push dm error', e?.message || e); }
     } catch (error) {
         console.error("Error in sendMessage:", error);
     }
@@ -120,6 +140,26 @@ export default function setupSocket(server) {
     if (channelDoc && channelDoc._id) {
         io.to(channelDoc._id.toString()).emit("receive-channel-message", finalData);
     }
+    // Push notification for channel (all members except sender)
+    try {
+      const exclude = String(sender);
+      const memberIds = (channelDoc?.members || []).map((m) => String(m._id || m)).filter((id) => id !== exclude);
+      const preview = (content || '').slice(0, 60) || '📎 Attachment';
+      const senderName = `${messageData?.sender?.firstName || ''} ${messageData?.sender?.lastName || ''}`.trim();
+      const channelAvatar = channelDoc?.profilePicture ? `${process.env.ORIGIN || ''}/channels/${channelDoc.profilePicture}` : '';
+      const senderAvatar = messageData?.sender?.image ? `${process.env.ORIGIN || ''}/${messageData.sender.image}` : '';
+      await sendToUsers({
+        userIds: memberIds,
+        title: `${channelDoc?.name || 'Channel'} • ${senderName}`.trim(),
+        body: preview,
+        image: channelAvatar || senderAvatar,
+        url: `/chat/${channelId}`,
+        type: 'channel',
+        extra: { channelId: String(channelId), senderId: String(sender), senderName, preview, avatar: senderAvatar },
+        priority: 'normal',
+        ttlSec: 3600,
+      });
+    } catch (e) { console.error('push channel error', e?.message || e); }
   };
 
   io.on("connection", (socket) => {

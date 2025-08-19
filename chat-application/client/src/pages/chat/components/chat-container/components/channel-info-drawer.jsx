@@ -133,13 +133,57 @@ const ChannelInfoDrawer = ({ open, onClose }) => {
 
         {!editing && (
           <div className="flex flex-wrap items-center gap-2">
-            <button className="px-3 py-1 rounded bg-[#2a2b33] hover:bg-[#3a3d49]" onClick={() => navigate('/profile')}>Update Profile</button>
             {isAdmin && (
               <>
                 <button className="px-3 py-1 rounded bg-[#6c46f5] hover:bg-[#7a58f7]" onClick={() => setEditing(true)}>Edit Description</button>
                 <button className="px-3 py-1 rounded bg-[#2a2b33] hover:bg-[#3a3d49]" onClick={() => setShowAdd((v) => !v)}>
                   {showAdd ? 'Close Add Members' : 'Add Members'}
                 </button>
+                <button
+                  className="px-3 py-1 rounded bg-[#2a2b33] hover:bg-[#3a3d49]"
+                  onClick={() => document.getElementById('channel-picture-input')?.click()}
+                >
+                  Update Channel Picture
+                </button>
+                <input
+                  id="channel-picture-input"
+                  type="file"
+                  accept=".png,.jpg,.jpeg,.webp,.svg"
+                  className="hidden"
+                  onChange={async (e) => {
+                    try {
+                      if (!isAdmin) { toast.error('❌ Only channel admins can update the channel picture.'); return; }
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (!info?.id) { toast.error('❌ Invalid channel.'); return; }
+                      const form = new FormData();
+                      form.append('channel-image', file);
+                      const res = await apiClient.post(`/api/channel/${info.id}/update-picture`, form, { withCredentials: true });
+                      if (res.status === 200 && res.data?.success && res.data?.profilePicture) {
+                        const profilePicture = res.data.profilePicture;
+                        const updatedAt = res.data?.updatedAt || Date.now();
+                        // Update drawer preview
+                        setInfo((prev) => prev ? { ...prev, pictureUrl: `channels/${profilePicture}` } : prev);
+                        // Update global store: header + sidebar
+                        if (selectedChatData?._id === info.id) {
+                          setSelectedChatData({ ...selectedChatData, profilePicture, updatedAt });
+                        }
+                        updateChannelInList?.(info.id, { profilePicture, updatedAt });
+                        // Notify others via socket
+                        socket?.emit('channel-picture-updated', { channelId: info.id, profilePicture, updatedAt });
+                        toast.success('✅ Channel picture updated successfully', { duration: 3000 });
+                      } else {
+                        toast.error(res.data?.error || '❌ Failed to update channel picture. Please try again.', { duration: 3000 });
+                      }
+                    } catch (err) {
+                      const msg = err?.response?.data?.error || err?.message || '❌ Failed to update channel picture. Please try again.';
+                      toast.error(msg, { duration: 3000 });
+                    } finally {
+                      const input = document.getElementById('channel-picture-input');
+                      if (input) input.value = '';
+                    }
+                  }}
+                />
               </>
             )}
           </div>

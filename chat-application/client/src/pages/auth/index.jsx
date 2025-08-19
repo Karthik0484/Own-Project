@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import { LOGIN_ROUTE, SIGNUP_ROUTE } from "@/utils/constants";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/store";
+import { enableNotifications } from "@/services/notifications";
 
 
 const Auth = () => { 
@@ -106,6 +107,9 @@ const validateLogin = () => {
         localStorage.removeItem("email");
         localStorage.removeItem("password");
 
+
+        // Ask for notification permission and register token on login
+        try { await enableNotifications(); } catch {}
 
         if(response.data.user.profileSetup) navigate('/chat');
           else navigate("/profile");

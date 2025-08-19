@@ -126,7 +126,13 @@ export const SocketProvider = ({ children }) => {
                         incrementUnreadCount(conversationId);
                     }
                 }
-                addContactsInDMContacts(message);
+                // Ensure we call the store action from the current store instance
+                try {
+                    const { addContactsInDMContacts } = useAppStore.getState();
+                    if (typeof addContactsInDMContacts === 'function') {
+                        addContactsInDMContacts(message);
+                    }
+                } catch {}
             };
 
             const handleRecieveChannelMessage = (message) => {
