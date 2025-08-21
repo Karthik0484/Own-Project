@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSocket } from '@/context/SocketContext';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
+import WhiteboardButton from '@/components/whiteboard/WhiteboardButton';
 
 const ChatHeader = ({ onHeaderClick }) => {
   const { closeChat, selectedChatData, selectedChatType, onlineUsers, userInfo, setSelectedChatData, updateChannelInList } = useAppStore();
@@ -93,7 +94,6 @@ const ChatHeader = ({ onHeaderClick }) => {
         setSelectedChatData({ ...selectedChatData, members: res.data.members });
         updateChannelInList?.(selectedChatData._id, { members: res.data.members });
         socket?.emit('channel-members-added', { channelId: selectedChatData._id, members: res.data.members });
-        setSearchTerm(''); setSearchResults([]);
         const dn = `${res.data.user.firstName || ''} ${res.data.user.lastName || ''}`.trim() || res.data.user.email || displayName;
         toast.success(`✅ ${dn} added to channel`, { duration: 3000 });
       } else {
@@ -110,7 +110,6 @@ const ChatHeader = ({ onHeaderClick }) => {
             setSelectedChatData({ ...selectedChatData, members: res2.data.members });
             updateChannelInList?.(selectedChatData._id, { members: res2.data.members });
             socket?.emit('channel-members-added', { channelId: selectedChatData._id, members: res2.data.members });
-            setSearchTerm(''); setSearchResults([]);
             const dn = `${res2.data.user.firstName || ''} ${res2.data.user.lastName || ''}`.trim() || res2.data.user.email || displayName;
             toast.success(`✅ ${dn} added to channel`, { duration: 3000 });
             return;
@@ -144,21 +143,16 @@ const ChatHeader = ({ onHeaderClick }) => {
     };
   }, [socket, isChannel, selectedChatData?._id]);
 
-  const handleHeaderClick = () => {
+  // Separate handler for profile/info click
+  const handleProfileClick = (e) => {
+    e.stopPropagation(); // Prevent any parent click handlers
     setHeaderActive(true);
     setTimeout(() => setHeaderActive(false), 180);
     onHeaderClick?.();
   };
 
   return (
-    <div
-      className={`h-[10vh] border-b-2 border-[#2f303b] flex items-center justify-between px-4 sm:px-6 md:px-10 xl:px-20 chat-header transition-colors duration-150 ${headerActive ? 'ring-2 ring-[#6c46f5]/40' : ''} hover:bg-[#20212b] cursor-pointer group`}
-      onClick={handleHeaderClick}
-      title="Click to view channel info"
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleHeaderClick(); }}
-    >
+    <div className="h-[10vh] border-b-2 border-[#2f303b] flex items-center justify-between px-4 sm:px-6 md:px-10 xl:px-20 chat-header transition-colors duration-150 hover:bg-[#20212b]">
       <div className="flex gap-3 sm:gap-5 items-center w-full justify-between">
         {/* Back button on mobile to show sidebar */}
         <button
@@ -168,7 +162,16 @@ const ChatHeader = ({ onHeaderClick }) => {
         >
           <RiArrowLeftLine className="text-2xl" />
         </button>
-        <div className="flex gap-3 items-center justify-center ">
+        
+        {/* Profile section - clickable for profile/info */}
+        <div 
+          className={`flex gap-3 items-center justify-center cursor-pointer group transition-colors duration-150 ${headerActive ? 'ring-2 ring-[#6c46f5]/40' : ''}`}
+          onClick={handleProfileClick}
+          title={selectedChatType === 'channel' ? 'Click to view channel info' : 'Click to view user profile'}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleProfileClick(e); }}
+        >
           <div className="relative flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12">
             {/* Render avatar for both contacts and channels */}
             <Avatar className="rounded-full overflow-hidden w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12">
@@ -210,11 +213,24 @@ const ChatHeader = ({ onHeaderClick }) => {
                   </span>
                 </>
               )}
-              {selectedChatType === "contact" && selectedChatData?.firstName ? (
-                <span>{`${selectedChatData.firstName} ${selectedChatData.lastName}`}</span>
-              ) : selectedChatType === "contact" && selectedChatData?.email ? (
-                <span>{selectedChatData.email}</span>
-              ) : null}
+              {selectedChatType === "contact" && (
+                <>
+                  <span>
+                    {selectedChatData?.firstName 
+                      ? `${selectedChatData.firstName} ${selectedChatData.lastName || ''}`.trim()
+                      : selectedChatData?.email || 'Unknown User'
+                    }
+                  </span>
+                  <span
+                    className="ml-1 inline-flex items-center h-5 rounded-full bg-gradient-to-r from-[#10b981] to-[#059669] text-white text-[10px] px-1.5 shadow-sm transform transition-all duration-200 group-hover:px-2 group-hover:gap-1 group-hover:scale-[1.03]"
+                    aria-hidden="true"
+                    title="Click to view user profile"
+                  >
+                    <span className="leading-none">👤</span>
+                    <span className="hidden sm:inline leading-none">Profile</span>
+                  </span>
+                </>
+              )}
             </div>
             <div className="text-xs text-gray-400">
               {selectedChatType === "contact" && (isOnline ? (
@@ -225,7 +241,14 @@ const ChatHeader = ({ onHeaderClick }) => {
             </div>
           </div>
         </div>
-        <div className="flex items-center jus gap-5">
+        
+        {/* Action buttons section - separate from profile click */}
+        <div className="flex items-center gap-3">
+          <WhiteboardButton
+            chatId={selectedChatData?._id}
+            chatType={selectedChatType}
+            chatName={selectedChatType === 'channel' ? selectedChatData?.name : `${selectedChatData?.firstName} ${selectedChatData?.lastName}`}
+          />
           <button className="text-neutral-500 focus:border-none focus:outline-none focus:text-white duration-300 transition-all" 
             onClick={handleClose}
           >

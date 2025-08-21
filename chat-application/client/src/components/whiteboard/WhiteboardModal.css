@@ -1,0 +1,54 @@
+/* Custom cursors for whiteboard tools */
+
+.whiteboard-canvas {
+  cursor: crosshair;
+}
+
+.whiteboard-canvas.pen-tool {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'><path d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z' fill='black'/></svg>") 0 20, auto;
+}
+
+.whiteboard-canvas.eraser-tool {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'><rect x='2' y='2' width='16' height='16' fill='white' stroke='black' stroke-width='1'/><path d='M6 6l8 8M14 6l-8 8' stroke='black' stroke-width='1'/></svg>") 10 10, auto;
+}
+
+.whiteboard-canvas.text-tool {
+  cursor: text;
+}
+
+.whiteboard-canvas.shape-tool {
+  cursor: crosshair;
+}
+
+/* Responsive cursor adjustments */
+@media (max-width: 768px) {
+  .whiteboard-canvas {
+    cursor: pointer;
+  }
+  
+  .whiteboard-canvas.text-tool {
+    cursor: text;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .whiteboard-canvas {
+    cursor: pointer;
+  }
+  
+  .whiteboard-canvas.text-tool {
+    cursor: text;
+  }
+}
+
+/* Dark mode cursor adjustments */
+@media (prefers-color-scheme: dark) {
+  .whiteboard-canvas.pen-tool {
+    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'><path d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z' fill='white'/></svg>") 0 20, auto;
+  }
+  
+  .whiteboard-canvas.eraser-tool {
+    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'><rect x='2' y='2' width='16' height='16' fill='black' stroke='white' stroke-width='1'/><path d='M6 6l8 8M14 6l-8 8' stroke='white' stroke-width='1'/></svg>") 10 10, auto;
+  }
+}

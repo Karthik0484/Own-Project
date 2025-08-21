@@ -14,6 +14,10 @@ const allowedOrigins = [
 
 let ioRef = null;
 
+// Whiteboard sessions storage
+const whiteboardSessions = new Map();
+const voiceSessions = new Map();
+
 // moved below setupSocket to top-level scope
 
 export default function setupSocket(server) {
@@ -42,6 +46,31 @@ export default function setupSocket(server) {
             break;
         }
     }
+    
+    // Clean up whiteboard and voice sessions
+    cleanupUserSessions(socket.id);
+ };
+
+ const cleanupUserSessions = (socketId) => {
+   // Remove user from whiteboard sessions
+   for (const [sessionId, session] of whiteboardSessions.entries()) {
+     session.participants = session.participants.filter(p => p.socketId !== socketId);
+     if (session.participants.length === 0) {
+       whiteboardSessions.delete(sessionId);
+     } else {
+       io.to(sessionId).emit('whiteboard:user_left', { socketId });
+     }
+   }
+   
+   // Remove user from voice sessions
+   for (const [sessionId, session] of voiceSessions.entries()) {
+     session.participants = session.participants.filter(p => p.socketId !== socketId);
+     if (session.participants.length === 0) {
+       voiceSessions.delete(sessionId);
+     } else {
+       io.to(sessionId).emit('voice:user_left', { socketId });
+     }
+   }
  };
 
  const sendMessage = async ( message ) => {
@@ -84,13 +113,25 @@ export default function setupSocket(server) {
             // Notify sender that message is sent
             io.to(senderSocketId).emit("message_status_update", { messageId: createdMessage._id, status: "sent" });
         }
+        
         // Push notification for DM (recipient only)
+        console.log("🔔 Starting DM push notification process...");
         try {
           const senderId = String(message.sender);
           const recipientId = String(message.recipient);
           const preview = (message.content || '').slice(0, 60) || '📎 Attachment';
           const senderName = `${messageData?.sender?.firstName || ''} ${messageData?.sender?.lastName || ''}`.trim() || 'New message';
           const avatar = messageData?.sender?.image ? `${process.env.ORIGIN || ''}/${messageData.sender.image}` : '';
+          
+          console.log("📱 DM Push notification details:", {
+            senderId,
+            recipientId,
+            senderName,
+            preview,
+            avatar,
+            content: message.content
+          });
+          
           await sendToUsers({
             userIds: [recipientId],
             title: `${senderName} • Direct message`,
@@ -102,65 +143,321 @@ export default function setupSocket(server) {
             priority: 'high',
             ttlSec: 3600,
           });
-        } catch (e) { console.error('push dm error', e?.message || e); }
+          console.log("✅ DM push notification sent successfully");
+        } catch (e) { 
+          console.error('❌ Push DM error:', e?.message || e); 
+          console.error('❌ Full error:', e);
+        }
     } catch (error) {
         console.error("Error in sendMessage:", error);
     }
  };
 
  const sendChannelMessage = async (message) => {
-    const { channelId, sender, content, messageType, fileUrl } = message;
+    console.log("sendChannelMessage function called with:", message);
+    
+    try {
+        const { channelId, sender, content, messageType, fileUrl } = message;
 
-    const createdMessage = await Message.create({
-        sender,
+        console.log("Creating channel message in database...");
+        const createdMessage = await Message.create({
+            sender,
+            recipient: null,
+            content,
+            channelId,
+            timestamp: new Date(),
+            messageType,
+            fileUrl,
+        });
+        console.log("Channel message created successfully:", createdMessage);
+
+        const messageData = await Message.findById(createdMessage._id)
+            .populate("sender", "id email firstName lastName image color lastSeen")
+            .exec();
+
+        await channel.findByIdAndUpdate(channelId, {
+            $push: { messages: messageData._id },
+        });
+
+        const channelDoc = await channel.findById(channelId)
+            .populate("members");
+
+        const finalData = {
+            ...messageData._doc,
+            channelId: channelDoc._id
+        };
+
+        if (channelDoc && channelDoc._id) {
+            io.to(channelDoc._id.toString()).emit("receive-channel-message", finalData);
+        }
+        
+        // Push notification for channel (all members except sender)
+        console.log("🔔 Starting channel push notification process...");
+        try {
+          const exclude = String(sender);
+          const memberIds = (channelDoc?.members || []).map((m) => String(m._id || m)).filter((id) => id !== exclude);
+          const preview = (content || '').slice(0, 60) || '📎 Attachment';
+          const senderName = `${messageData?.sender?.firstName || ''} ${messageData?.sender?.lastName || ''}`.trim();
+          const channelAvatar = channelDoc?.profilePicture ? `${process.env.ORIGIN || ''}/channels/${channelDoc.profilePicture}` : '';
+          const senderAvatar = messageData?.sender?.image ? `${process.env.ORIGIN || ''}/${messageData.sender.image}` : '';
+          
+          console.log("📱 Channel Push notification details:", {
+            channelId: String(channelId),
+            channelName: channelDoc?.name,
+            senderId: String(sender),
+            senderName,
+            memberIds,
+            preview,
+            content
+          });
+          
+          await sendToUsers({
+            userIds: memberIds,
+            title: `${channelDoc?.name || 'Channel'} • ${senderName}`.trim(),
+            body: preview,
+            image: channelAvatar || senderAvatar,
+            url: `/chat/${channelId}`,
+            type: 'channel',
+            extra: { channelId: String(channelId), senderId: String(sender), senderName, preview, avatar: senderAvatar },
+            priority: 'normal',
+            ttlSec: 3600,
+          });
+          console.log("✅ Channel push notification sent successfully");
+        } catch (e) { 
+          console.error('❌ Push channel error:', e?.message || e); 
+          console.error('❌ Full error:', e);
+        }
+    } catch (error) {
+        console.error("Error in sendChannelMessage:", error);
+    }
+  };
+
+  // Whiteboard event handlers
+  const handleWhiteboardJoin = async (socket, data) => {
+    const { sessionId, userId, userInfo } = data;
+    
+    if (!whiteboardSessions.has(sessionId)) {
+      whiteboardSessions.set(sessionId, {
+        participants: [],
+        canvas: null,
+        locked: false,
+        adminId: null
+      });
+    }
+    
+    const session = whiteboardSessions.get(sessionId);
+    const participant = {
+      socketId: socket.id,
+      userId,
+      userInfo,
+      joinedAt: new Date()
+    };
+    
+    session.participants.push(participant);
+    socket.join(sessionId);
+    
+    // Set first user as admin if no admin exists
+    if (!session.adminId) {
+      session.adminId = userId;
+    }
+    
+    io.to(sessionId).emit('whiteboard:user_joined', {
+      participant,
+      allParticipants: session.participants,
+      isAdmin: session.adminId === userId,
+      isLocked: session.locked
+    });
+    
+    console.log(`User ${userId} joined whiteboard session ${sessionId}`);
+  };
+
+  const handleWhiteboardLeave = async (socket, data) => {
+    const { sessionId, userId } = data;
+    const session = whiteboardSessions.get(sessionId);
+
+    if (!session) return;
+
+    session.participants = session.participants.filter(p => p.socketId !== socket.id);
+    if (session.participants.length === 0) {
+      whiteboardSessions.delete(sessionId);
+    } else {
+      io.to(sessionId).emit('whiteboard:user_left', { socketId: socket.id });
+    }
+    console.log(`User ${userId} left whiteboard session ${sessionId}`);
+  };
+
+  const handleWhiteboardDraw = (socket, data) => {
+    const { sessionId, drawData, userId } = data;
+    const session = whiteboardSessions.get(sessionId);
+    
+    if (!session) return;
+    
+    // Check if whiteboard is locked and user is not admin
+    if (session.locked && session.adminId !== userId) {
+      socket.emit('whiteboard:error', { message: 'Whiteboard is locked by admin' });
+      return;
+    }
+    
+    // Broadcast drawing action to all participants
+    socket.to(sessionId).emit('whiteboard:draw', {
+      drawData,
+      userId,
+      timestamp: Date.now()
+    });
+  };
+
+  const handleWhiteboardSnapshot = async (socket, data) => {
+    const { sessionId, imageData, channelId, userId } = data;
+    
+    try {
+      // Save snapshot as a message in the channel
+      const snapshotMessage = await Message.create({
+        sender: userId,
         recipient: null,
-        content,
+        content: 'Whiteboard Snapshot',
         channelId,
         timestamp: new Date(),
-        messageType,
-        fileUrl,
-    });
-
-    const messageData = await Message.findById(createdMessage._id)
-        .populate("sender", "id email firstName lastName image color lastSeen")
-        .exec();
-
-    await channel.findByIdAndUpdate(channelId, {
-        $push: { messages: messageData._id },
-    });
-
-    const channelDoc = await channel.findById(channelId)
-        .populate("members");
-
-    const finalData = {
-        ...messageData._doc,
-        channelId: channelDoc._id
-    };
-
-    if (channelDoc && channelDoc._id) {
-        io.to(channelDoc._id.toString()).emit("receive-channel-message", finalData);
-    }
-    // Push notification for channel (all members except sender)
-    try {
-      const exclude = String(sender);
-      const memberIds = (channelDoc?.members || []).map((m) => String(m._id || m)).filter((id) => id !== exclude);
-      const preview = (content || '').slice(0, 60) || '📎 Attachment';
-      const senderName = `${messageData?.sender?.firstName || ''} ${messageData?.sender?.lastName || ''}`.trim();
-      const channelAvatar = channelDoc?.profilePicture ? `${process.env.ORIGIN || ''}/channels/${channelDoc.profilePicture}` : '';
-      const senderAvatar = messageData?.sender?.image ? `${process.env.ORIGIN || ''}/${messageData.sender.image}` : '';
-      await sendToUsers({
-        userIds: memberIds,
-        title: `${channelDoc?.name || 'Channel'} • ${senderName}`.trim(),
-        body: preview,
-        image: channelAvatar || senderAvatar,
-        url: `/chat/${channelId}`,
-        type: 'channel',
-        extra: { channelId: String(channelId), senderId: String(sender), senderName, preview, avatar: senderAvatar },
-        priority: 'normal',
-        ttlSec: 3600,
+        messageType: 'whiteboard_snapshot',
+        fileUrl: imageData // This would be the base64 image data or file path
       });
-    } catch (e) { console.error('push channel error', e?.message || e); }
+      
+      // Broadcast snapshot saved event
+      io.to(sessionId).emit('whiteboard:snapshot_saved', {
+        messageId: snapshotMessage._id,
+        userId,
+        timestamp: Date.now()
+      });
+      
+      console.log(`Whiteboard snapshot saved for session ${sessionId}`);
+    } catch (error) {
+      console.error('Error saving whiteboard snapshot:', error);
+      socket.emit('whiteboard:error', { message: 'Failed to save snapshot' });
+    }
   };
+
+  const handleWhiteboardToggleLock = async (socket, data) => {
+    const { sessionId, userId } = data;
+    const session = whiteboardSessions.get(sessionId);
+
+    if (!session) return;
+
+    if (session.adminId === userId) {
+      session.locked = !session.locked;
+      io.to(sessionId).emit('whiteboard:locked', { isLocked: session.locked, adminId: userId });
+      console.log(`Whiteboard session ${sessionId} locked/unlocked by admin ${userId}`);
+    }
+  };
+
+  // Voice chat event handlers
+  const handleVoiceJoin = async (socket, data) => {
+    const { sessionId, userId, userInfo } = data;
+    
+    if (!voiceSessions.has(sessionId)) {
+      voiceSessions.set(sessionId, {
+        participants: [],
+        mutedUsers: new Set()
+      });
+    }
+    
+    const session = voiceSessions.get(sessionId);
+    const participant = {
+      socketId: socket.id,
+      userId,
+      userInfo,
+      isMuted: false,
+      joinedAt: new Date()
+    };
+    
+    session.participants.push(participant);
+    socket.join(sessionId);
+    
+    io.to(sessionId).emit('voice:user_joined', {
+      participant,
+      allParticipants: session.participants
+    });
+    
+    console.log(`User ${userId} joined voice session ${sessionId}`);
+  };
+
+  const handleVoiceLeave = async (socket, data) => {
+    const { sessionId, userId } = data;
+    const session = voiceSessions.get(sessionId);
+
+    if (!session) return;
+
+    session.participants = session.participants.filter(p => p.socketId !== socket.id);
+    if (session.participants.length === 0) {
+      voiceSessions.delete(sessionId);
+    } else {
+      io.to(sessionId).emit('voice:user_left', { socketId: socket.id });
+    }
+    console.log(`User ${userId} left voice session ${sessionId}`);
+  };
+
+  const handleVoiceSignal = (socket, data) => {
+    const { sessionId, targetSocketId, signal, type } = data;
+    
+    // Forward WebRTC signaling to target user
+    io.to(targetSocketId).emit('voice:signaling', {
+      fromSocketId: socket.id,
+      signal,
+      type
+    });
+  };
+
+  const handleVoiceSpeaking = (socket, data) => {
+    const { sessionId, isSpeaking } = data;
+    io.to(sessionId).emit('voice:speaking', { isSpeaking });
+  };
+
+  const handleVoiceMute = (socket, data) => {
+    const { sessionId, userId, isMuted } = data;
+    const session = voiceSessions.get(sessionId);
+    
+    if (!session) return;
+    
+    const participant = session.participants.find(p => p.socketId === socket.id);
+    if (participant) {
+      participant.isMuted = isMuted;
+      if (isMuted) {
+        session.mutedUsers.add(userId);
+      } else {
+        session.mutedUsers.delete(userId);
+      }
+      
+      io.to(sessionId).emit('voice:user_muted', {
+        userId,
+        isMuted,
+        socketId: socket.id
+      });
+    }
+  };
+
+  const handleVoiceAdminMute = (socket, data) => {
+    const { sessionId, targetUserId, isMuted } = data;
+    const session = voiceSessions.get(sessionId);
+    
+    if (!session) return;
+    
+    const targetParticipant = session.participants.find(p => p.userId === targetUserId);
+    if (targetParticipant) {
+      targetParticipant.isMuted = isMuted;
+      if (isMuted) {
+        session.mutedUsers.add(targetUserId);
+      } else {
+        session.mutedUsers.delete(targetUserId);
+      }
+      
+      io.to(targetParticipant.socketId).emit('voice:admin_muted', { isMuted });
+      io.to(sessionId).emit('voice:user_muted', {
+        userId: targetUserId,
+        isMuted,
+        socketId: targetParticipant.socketId
+      });
+    }
+  };
+
+
 
   io.on("connection", (socket) => {
     console.log("New socket connection:", socket.id);
@@ -199,91 +496,92 @@ export default function setupSocket(server) {
             try {
                 await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
             } catch (error) {
-                console.error("Error updating heartbeat:", error);
+                console.error("Error updating lastSeen:", error);
             }
-        }, 30000);
+        }, 30000); // Update every 30 seconds
 
         socket.on("disconnect", () => {
             clearInterval(heartbeat);
-            userSocketMap.delete(userId);
-            User.findByIdAndUpdate(userId, { online: false, lastSeen: new Date() }).catch(console.error);
-            io.emit("userOffline", { userId });
+            disconnect(socket);
         });
-    } else {
-        console.log("User ID not provided during connection.");
+
+        // Message events
+        socket.on("sendMessage", (data) => {
+            sendMessage(data);
+        });
+
+        socket.on("send-channel-message", (data) => {
+            sendChannelMessage(data);
+        });
+
+        // Typing events
+        socket.on("typing", (data) => {
+            const { recipient, isTyping } = data;
+            const recipientSocketId = userSocketMap.get(recipient);
+            if (recipientSocketId) {
+                io.to(recipientSocketId).emit("typing", { sender: userId, isTyping });
+            }
+        });
+
+        // Whiteboard events
+        socket.on("whiteboard:join", (data) => {
+            handleWhiteboardJoin(socket, { ...data, userId });
+        });
+
+        socket.on("whiteboard:leave", (data) => {
+            handleWhiteboardLeave(socket, { ...data, userId });
+        });
+
+        socket.on("whiteboard:draw", (data) => {
+            handleWhiteboardDraw(socket, { ...data, userId });
+        });
+
+        socket.on("whiteboard:save_snapshot", (data) => {
+            handleWhiteboardSnapshot(socket, { ...data, userId });
+        });
+
+        socket.on("whiteboard:toggle_lock", (data) => {
+            handleWhiteboardToggleLock(socket, { ...data, userId });
+        });
+
+        // Voice chat events
+        socket.on("whiteboard:voice_join", (data) => {
+            handleVoiceJoin(socket, { ...data, userId });
+        });
+
+        socket.on("whiteboard:voice_leave", (data) => {
+            handleVoiceLeave(socket, { ...data, userId });
+        });
+
+        socket.on("whiteboard:voice_signal", (data) => {
+            handleVoiceSignal(socket, { ...data, userId });
+        });
+
+        socket.on("whiteboard:voice_speaking", (data) => {
+            handleVoiceSpeaking(socket, { ...data, userId });
+        });
+
+        socket.on("voice:mute", (data) => {
+            handleVoiceMute(socket, { ...data, userId });
+        });
+
+        socket.on("voice:admin_mute", (data) => {
+            handleVoiceAdminMute(socket, { ...data, userId });
+        });
+
+        socket.on("voice:leave", (data) => {
+            const { sessionId } = data;
+            const session = voiceSessions.get(sessionId);
+            if (session) {
+                session.participants = session.participants.filter(p => p.socketId !== socket.id);
+                if (session.participants.length === 0) {
+                    voiceSessions.delete(sessionId);
+                } else {
+                    io.to(sessionId).emit('voice:user_left', { socketId: socket.id });
+                }
+            }
+        });
     }
-
-    socket.on("sendMessage", (data) => {
-        sendMessage(data);
-    });
-    
-    socket.on("send-channel-message", sendChannelMessage);
-
-    // channel metadata updates
-    socket.on("channel:update", ({ channelId, description, pictureUrl, name }) => {
-      const payload = { channelId };
-      if (description !== undefined) payload.description = description;
-      if (pictureUrl !== undefined) payload.pictureUrl = pictureUrl;
-      if (name !== undefined) payload.name = name;
-      io.to(String(channelId)).emit("channel:update", payload);
-    });
-
-    socket.on("channel:members:update", ({ channelId, members }) => {
-      io.to(String(channelId)).emit("channel:members:update", { channelId, members });
-    });
-
-    // real-time: channel picture updated (include cache-busting timestamp)
-    socket.on("channel-picture-updated", ({ channelId, profilePicture, updatedAt }) => {
-      const payload = { channelId, profilePicture };
-      if (updatedAt) payload.updatedAt = updatedAt;
-      io.to(channelId).emit("channel-picture-updated", payload);
-    });
-
-    // real-time: channel members added
-    socket.on("channel-members-added", ({ channelId, members }) => {
-      io.to(channelId).emit("channel-members-added", { channelId, members });
-    });
-
-    socket.on("typing", (data) => {
-        const { recipient, isTyping } = data;
-        const recipientSocketId = userSocketMap.get(recipient);
-        if (recipientSocketId) {
-            io.to(recipientSocketId).emit("userTyping", {
-                sender: userId,
-                isTyping: isTyping
-            });
-        }
-    });
-
-    socket.on("readMessages", async (data) => {
-        const { senderId, recipientId } = data;
-        // Mark all messages from sender to recipient as read
-        await Message.updateMany(
-            { sender: senderId, recipient: recipientId, read: false },
-            { $set: { read: true, status: "read" } }
-        );
-        // Find all read message IDs
-        const updatedMessages = await Message.find({ sender: senderId, recipient: recipientId, read: true }, '_id');
-        // Notify sender in real time
-        const senderSocketId = userSocketMap.get(senderId);
-        if (senderSocketId) {
-            io.to(senderSocketId).emit("messagesRead", {
-                recipientId,
-                messageIds: updatedMessages.map(m => m._id)
-            });
-            // Also emit unified message_status_update for UI consistency
-            updatedMessages.forEach(({ _id }) => {
-              io.to(senderSocketId).emit("message_status_update", { messageId: _id, status: "read" });
-            });
-        }
-    });
-
-    socket.on("join-channel", (channelId) => {
-        if (channelId) {
-            socket.join(channelId);
-            console.log(`Socket ${socket.id} joined channel room ${channelId}`);
-        }
-    });
   });
 }
 
