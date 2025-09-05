@@ -483,6 +483,48 @@ export default function setupSocket(server) {
     }
   };
 
+  // Undo handler
+  const handleWhiteboardUndo = (socket, data) => {
+    const { chatId, userId } = data;
+    const session = whiteboardSessions.get(chatId);
+    if (!session) return;
+
+    // Remove last action (optionally, only if by this user)
+    const lastAction = session.canvasHistory.pop();
+    // Optionally, keep a redo stack per session for redo support
+    if (!session.redoStack) session.redoStack = [];
+    if (lastAction) session.redoStack.push(lastAction);
+
+    // Broadcast new history to all clients
+    io.to(chatId).emit('whiteboard:board_state', {
+      chatId,
+      actions: session.canvasHistory
+    });
+  };
+
+  // Redo handler
+  const handleWhiteboardRedo = (socket, data) => {
+    const { chatId, userId } = data;
+    const session = whiteboardSessions.get(chatId);
+    if (!session || !session.redoStack || session.redoStack.length === 0) return;
+
+    // Restore last undone action
+    const redoAction = session.redoStack.pop();
+    if (redoAction) session.canvasHistory.push(redoAction);
+
+    // Broadcast new history to all clients
+    io.to(chatId).emit('whiteboard:board_state', {
+      chatId,
+      actions: session.canvasHistory
+    });
+  };
+
+  // Erase handler (treat as draw with tool: 'eraser')
+  const handleWhiteboardErase = (socket, data) => {
+    // Just call draw handler with tool: 'eraser'
+    handleWhiteboardDraw(socket, { ...data, tool: 'eraser' });
+  };
+
   // Voice chat event handlers
   const handleVoiceJoin = async (socket, data) => {
     const { sessionId, userId, userInfo } = data;
@@ -701,6 +743,16 @@ export default function setupSocket(server) {
                 userName,
                 timestamp
             });
+        });
+
+        socket.on("whiteboard:undo", (data) => {
+            handleWhiteboardUndo(socket, { ...data, userId });
+        });
+        socket.on("whiteboard:redo", (data) => {
+            handleWhiteboardRedo(socket, { ...data, userId });
+        });
+        socket.on("whiteboard:erase", (data) => {
+            handleWhiteboardErase(socket, { ...data, userId });
         });
 
         // Voice chat events
