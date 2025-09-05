@@ -691,6 +691,59 @@ export default function setupSocket(server) {
             sendChannelMessage(data);
         });
 
+        // Universe system events
+        socket.on("joinUniverse", (data) => {
+            const { dmId, universeId } = data;
+            const roomId = `${dmId}_${universeId}`;
+            socket.join(roomId);
+            console.log(`User ${userId} joined universe room: ${roomId}`);
+        });
+
+        socket.on("leaveUniverse", (data) => {
+            const { dmId, universeId } = data;
+            const roomId = `${dmId}_${universeId}`;
+            socket.leave(roomId);
+            console.log(`User ${userId} left universe room: ${roomId}`);
+        });
+
+        socket.on("sendUniverseMessage", async (data) => {
+            const { dmId, universeId, content, messageType, fileUrl } = data;
+            const roomId = `${dmId}_${universeId}`;
+            
+            try {
+                // Import DM model
+                const DM = (await import("./models/MessagesModel.js")).default;
+                const dm = await DM.findById(dmId);
+                if (!dm) return;
+                
+                const universe = dm.universes.id(universeId);
+                if (!universe) return;
+                
+                const message = {
+                    sender: userId,
+                    content,
+                    messageType,
+                    fileUrl,
+                    timestamp: new Date(),
+                    status: "sent",
+                    read: false
+                };
+                
+                universe.messages.push(message);
+                await dm.save();
+                
+                // Broadcast to all users in this universe
+                io.to(roomId).emit("receiveUniverseMessage", {
+                    dmId,
+                    universeId,
+                    message: universe.messages[universe.messages.length - 1]
+                });
+                
+            } catch (error) {
+                console.error("Error sending universe message:", error);
+            }
+        });
+
         // Typing events
         socket.on("typing", (data) => {
             const { recipient, isTyping } = data;

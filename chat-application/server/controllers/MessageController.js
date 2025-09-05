@@ -1,4 +1,5 @@
 import Message from "../models/MessagesModel.js";
+import DM from "../models/MessagesModel.js";
 import User from "../models/UserModel.js";
 import {mkdirSync, existsSync, renameSync} from "fs";
 
@@ -126,6 +127,88 @@ export const markMessagesAsRead = async (req, res, next) => {
     return res.status(200).json({ updatedMessageIds: updatedMessages.map(m => m._id) });
   } catch (error) {
     console.error("Error marking messages as read:", error);
+    return res.status(500).send("Internal Server Error");
+  }
+};
+
+// Universe system functions
+export const getOrCreateDM = async (req, res, next) => {
+  try {
+    const { otherUserId } = req.params;
+    const userId = req.userId;
+    if (!otherUserId || !userId) {
+      return res.status(400).send("Other user ID and User ID are required.");
+    }
+    let dm = await DM.findOne({ users: { $all: [userId, otherUserId] } });
+    if (!dm) {
+      dm = new DM({ users: [userId, otherUserId], universes: [{ name: "General", messages: [] }] });
+      await dm.save();
+    }
+    return res.status(200).json({ dm });
+  } catch (error) {
+    console.error("Error getting or creating DM:", error);
+    return res.status(500).send("Internal Server Error");
+  }
+};
+
+export const getUniverses = async (req, res, next) => {
+  try {
+    const { dmId } = req.params;
+    const dm = await DM.findById(dmId);
+    if (!dm) return res.status(404).send("DM not found.");
+    return res.status(200).json({ universes: dm.universes });
+  } catch (error) {
+    console.error("Error fetching universes:", error);
+    return res.status(500).send("Internal Server Error");
+  }
+};
+
+export const addUniverse = async (req, res, next) => {
+  try {
+    const { dmId } = req.params;
+    const { name } = req.body;
+    if (!name) return res.status(400).send("Universe name is required.");
+    const dm = await DM.findById(dmId);
+    if (!dm) return res.status(404).send("DM not found.");
+    dm.universes.push({ name, messages: [] });
+    await dm.save();
+    return res.status(200).json({ universe: dm.universes[dm.universes.length - 1] });
+  } catch (error) {
+    console.error("Error adding universe:", error);
+    return res.status(500).send("Internal Server Error");
+  }
+};
+
+export const getUniverseMessages = async (req, res, next) => {
+  try {
+    const { dmId, universeId } = req.params;
+    const dm = await DM.findById(dmId);
+    if (!dm) return res.status(404).send("DM not found.");
+    const universe = dm.universes.id(universeId);
+    if (!universe) return res.status(404).send("Universe not found.");
+    return res.status(200).json({ messages: universe.messages });
+  } catch (error) {
+    console.error("Error fetching universe messages:", error);
+    return res.status(500).send("Internal Server Error");
+  }
+};
+
+export const sendUniverseMessage = async (req, res, next) => {
+  try {
+    const { dmId, universeId } = req.params;
+    const { content, messageType, fileUrl } = req.body;
+    const userId = req.userId;
+    if (!content && !fileUrl) return res.status(400).send("Message content or file is required.");
+    const dm = await DM.findById(dmId);
+    if (!dm) return res.status(404).send("DM not found.");
+    const universe = dm.universes.id(universeId);
+    if (!universe) return res.status(404).send("Universe not found.");
+    const message = { sender: userId, content, messageType, fileUrl, timestamp: new Date(), status: "sent", read: false };
+    universe.messages.push(message);
+    await dm.save();
+    return res.status(200).json({ message: universe.messages[universe.messages.length - 1] });
+  } catch (error) {
+    console.error("Error sending universe message:", error);
     return res.status(500).send("Internal Server Error");
   }
 };

@@ -13,7 +13,7 @@ import { set } from "date-fns";
 import { IoCloseSharp } from "react-icons/io5";
 import { render } from "react-dom";
 
-const MessageContainer = () => {
+const MessageContainer = ({ selectedUniverseId }) => {
 
   const scrollRef = useRef();
   const containerRef = useRef();
