@@ -542,8 +542,8 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
     
     if (tool === 'text') {
       setTextPosition({ x, y });
@@ -574,8 +574,8 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
     
     const context = contextRef.current;
     
@@ -759,8 +759,8 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     if (!shapeStart || (isLocked && !isAdmin)) return;
     
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left) * (canvasRef.current.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvasRef.current.height / rect.height);
     
     const context = contextRef.current;
     const tempCanvas = document.createElement('canvas');
@@ -956,6 +956,22 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
       contextRef.current = context;
     }
   }, [isOpen, color, brushSize]);
+
+  // Utility to get pointer position relative to canvas, accounting for scaling
+  function getCanvasPointerPosition(event, canvas) {
+    const rect = canvas.getBoundingClientRect();
+    let clientX, clientY;
+    if (event.touches && event.touches.length > 0) {
+      clientX = event.touches[0].clientX;
+      clientY = event.touches[0].clientY;
+    } else {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
+    const x = (clientX - rect.left) * (canvas.width / rect.width);
+    const y = (clientY - rect.top) * (canvas.height / rect.height);
+    return { x, y };
+  }
 
   if (!isOpen) return null;
 
@@ -1237,9 +1253,7 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
                     if (isDrawing) draw(e);
                     if (shapeStart) handleShapeDrawing(e);
                     // Emit cursor position
-                    const rect = canvasRef.current.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
+                    const { x, y } = getCanvasPointerPosition(e, canvasRef.current);
                     if (socket) {
                       socket.emit('whiteboard:cursor_move', {
                         chatId,
