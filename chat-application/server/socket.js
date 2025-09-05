@@ -15,6 +15,7 @@ const allowedOrigins = [
 let ioRef = null;
 
 // Whiteboard sessions storage
+// All coordinates are stored as normalized values (0-1) for resolution independence
 const whiteboardSessions = new Map();
 const voiceSessions = new Map();
 
@@ -53,12 +54,12 @@ export default function setupSocket(server) {
 
  const cleanupUserSessions = (socketId) => {
    // Remove user from whiteboard sessions
-   for (const [sessionId, session] of whiteboardSessions.entries()) {
+   for (const [chatId, session] of whiteboardSessions.entries()) {
      session.participants = session.participants.filter(p => p.socketId !== socketId);
      if (session.participants.length === 0) {
-       whiteboardSessions.delete(sessionId);
+       whiteboardSessions.delete(chatId);
      } else {
-       io.to(sessionId).emit('whiteboard:user_left', { socketId });
+       io.to(chatId).emit('whiteboard:user_left', { socketId });
      }
    }
    
@@ -234,18 +235,18 @@ export default function setupSocket(server) {
 
   // Whiteboard event handlers
   const handleWhiteboardJoin = async (socket, data) => {
-    const { sessionId, userId, userInfo } = data;
+    const { chatId, chatType, userId, userInfo } = data;
     
-    if (!whiteboardSessions.has(sessionId)) {
-      whiteboardSessions.set(sessionId, {
+    if (!whiteboardSessions.has(chatId)) {
+      whiteboardSessions.set(chatId, {
         participants: [],
-        canvas: null,
+        canvasHistory: [],
         locked: false,
         adminId: null
       });
     }
     
-    const session = whiteboardSessions.get(sessionId);
+    const session = whiteboardSessions.get(chatId);
     const participant = {
       socketId: socket.id,
       userId,
@@ -254,41 +255,48 @@ export default function setupSocket(server) {
     };
     
     session.participants.push(participant);
-    socket.join(sessionId);
+    socket.join(chatId);
     
     // Set first user as admin if no admin exists
     if (!session.adminId) {
       session.adminId = userId;
     }
     
-    io.to(sessionId).emit('whiteboard:user_joined', {
+    // Send current board state to the joining user
+    socket.emit('whiteboard:board_state', {
+      chatId,
+      canvasState: session.canvasState,
+      actions: session.canvasHistory
+    });
+    
+    io.to(chatId).emit('whiteboard:user_joined', {
       participant,
       allParticipants: session.participants,
       isAdmin: session.adminId === userId,
       isLocked: session.locked
     });
     
-    console.log(`User ${userId} joined whiteboard session ${sessionId}`);
+    console.log(`User ${userId} joined whiteboard session ${chatId}`);
   };
 
   const handleWhiteboardLeave = async (socket, data) => {
-    const { sessionId, userId } = data;
-    const session = whiteboardSessions.get(sessionId);
+    const { chatId, userId } = data;
+    const session = whiteboardSessions.get(chatId);
 
     if (!session) return;
 
     session.participants = session.participants.filter(p => p.socketId !== socket.id);
     if (session.participants.length === 0) {
-      whiteboardSessions.delete(sessionId);
+      whiteboardSessions.delete(chatId);
     } else {
-      io.to(sessionId).emit('whiteboard:user_left', { socketId: socket.id });
+      io.to(chatId).emit('whiteboard:user_left', { socketId: socket.id });
     }
-    console.log(`User ${userId} left whiteboard session ${sessionId}`);
+    console.log(`User ${userId} left whiteboard session ${chatId}`);
   };
 
   const handleWhiteboardDraw = (socket, data) => {
-    const { sessionId, drawData, userId } = data;
-    const session = whiteboardSessions.get(sessionId);
+    const { chatId, userId, x0, y0, x1, y1, tool, color, brushSize, timestamp } = data;
+    const session = whiteboardSessions.get(chatId);
     
     if (!session) return;
     
@@ -298,16 +306,43 @@ export default function setupSocket(server) {
       return;
     }
     
-    // Broadcast drawing action to all participants
-    socket.to(sessionId).emit('whiteboard:draw', {
-      drawData,
+    // Add to canvas history (coordinates are already normalized from client)
+    const drawAction = {
+      type: 'draw',
       userId,
-      timestamp: Date.now()
+      x0, // Already normalized (0-1)
+      y0, // Already normalized (0-1)
+      x1, // Already normalized (0-1)
+      y1, // Already normalized (0-1)
+      tool,
+      color,
+      brushSize,
+      timestamp
+    };
+    
+    session.canvasHistory.push(drawAction);
+    
+    // Keep only last 1000 actions to prevent memory issues
+    if (session.canvasHistory.length > 1000) {
+      session.canvasHistory = session.canvasHistory.slice(-1000);
+    }
+    
+    // Broadcast drawing action to all participants (coordinates remain normalized)
+    socket.to(chatId).emit('whiteboard:draw', {
+      userId,
+      x0,
+      y0,
+      x1,
+      y1,
+      tool,
+      color,
+      brushSize,
+      timestamp
     });
   };
 
   const handleWhiteboardSnapshot = async (socket, data) => {
-    const { sessionId, imageData, channelId, userId } = data;
+    const { chatId, imageData, channelId, userId } = data;
     
     try {
       // Save snapshot as a message in the channel
@@ -322,29 +357,129 @@ export default function setupSocket(server) {
       });
       
       // Broadcast snapshot saved event
-      io.to(sessionId).emit('whiteboard:snapshot_saved', {
+      io.to(chatId).emit('whiteboard:snapshot_saved', {
         messageId: snapshotMessage._id,
         userId,
         timestamp: Date.now()
       });
       
-      console.log(`Whiteboard snapshot saved for session ${sessionId}`);
+      console.log(`Whiteboard snapshot saved for session ${chatId}`);
     } catch (error) {
       console.error('Error saving whiteboard snapshot:', error);
       socket.emit('whiteboard:error', { message: 'Failed to save snapshot' });
     }
   };
 
+  const handleWhiteboardShape = (socket, data) => {
+    const { chatId, userId, shape, color, brushSize, timestamp } = data;
+    const session = whiteboardSessions.get(chatId);
+    
+    if (!session) return;
+    
+    // Check if whiteboard is locked and user is not admin
+    if (session.locked && session.adminId !== userId) {
+      socket.emit('whiteboard:error', { message: 'Whiteboard is locked by admin' });
+      return;
+    }
+    
+    // Add to canvas history (shape coordinates are already normalized from client)
+    const shapeAction = {
+      type: 'shape_drawn',
+      userId,
+      shape, // Already normalized coordinates
+      color,
+      brushSize,
+      timestamp
+    };
+    
+    session.canvasHistory.push(shapeAction);
+    
+    // Broadcast shape to all participants (coordinates remain normalized)
+    socket.to(chatId).emit('whiteboard:shape_drawn', {
+      userId,
+      shape,
+      color,
+      brushSize,
+      timestamp
+    });
+  };
+
+  const handleWhiteboardText = (socket, data) => {
+    const { chatId, userId, text, x, y, color, fontSize, timestamp } = data;
+    const session = whiteboardSessions.get(chatId);
+    
+    if (!session) return;
+    
+    // Check if whiteboard is locked and user is not admin
+    if (session.locked && session.adminId !== userId) {
+      socket.emit('whiteboard:error', { message: 'Whiteboard is locked by admin' });
+      return;
+    }
+    
+    // Add to canvas history (text coordinates are already normalized from client)
+    const textAction = {
+      type: 'text_added',
+      userId,
+      text,
+      x, // Already normalized (0-1)
+      y, // Already normalized (0-1)
+      color,
+      fontSize,
+      timestamp
+    };
+    
+    session.canvasHistory.push(textAction);
+    
+    // Broadcast text to all participants (coordinates remain normalized)
+    socket.to(chatId).emit('whiteboard:text_added', {
+      userId,
+      text,
+      x,
+      y,
+      color,
+      fontSize,
+      timestamp
+    });
+  };
+
+  const handleWhiteboardClear = (socket, data) => {
+    const { chatId, userId, timestamp } = data;
+    const session = whiteboardSessions.get(chatId);
+    
+    if (!session) return;
+    
+    // Check if whiteboard is locked and user is not admin
+    if (session.locked && session.adminId !== userId) {
+      socket.emit('whiteboard:error', { message: 'Whiteboard is locked by admin' });
+      return;
+    }
+    
+    // Add to canvas history
+    const clearAction = {
+      type: 'canvas_cleared',
+      userId,
+      timestamp
+    };
+    
+    session.canvasHistory.push(clearAction);
+    
+    // Broadcast clear to all participants
+    socket.to(chatId).emit('whiteboard:canvas_cleared', {
+      userId,
+      timestamp
+    });
+  };
+
   const handleWhiteboardToggleLock = async (socket, data) => {
-    const { sessionId, userId } = data;
-    const session = whiteboardSessions.get(sessionId);
+    const { chatId, userId } = data;
+    const session = whiteboardSessions.get(chatId);
 
     if (!session) return;
 
     if (session.adminId === userId) {
       session.locked = !session.locked;
-      io.to(sessionId).emit('whiteboard:locked', { isLocked: session.locked, adminId: userId });
-      console.log(`Whiteboard session ${sessionId} locked/unlocked by admin ${userId}`);
+      io.to(chatId).emit('whiteboard:lock_status', { isLocked: session.locked, adminId: userId });
+      console.log(`Whiteboard session ${chatId} locked/unlocked by admin ${userId}`);
     }
   };
 
@@ -536,12 +671,36 @@ export default function setupSocket(server) {
             handleWhiteboardDraw(socket, { ...data, userId });
         });
 
+        socket.on("whiteboard:shape_drawn", (data) => {
+            handleWhiteboardShape(socket, { ...data, userId });
+        });
+
+        socket.on("whiteboard:text_added", (data) => {
+            handleWhiteboardText(socket, { ...data, userId });
+        });
+
+        socket.on("whiteboard:canvas_cleared", (data) => {
+            handleWhiteboardClear(socket, { ...data, userId });
+        });
+
         socket.on("whiteboard:save_snapshot", (data) => {
             handleWhiteboardSnapshot(socket, { ...data, userId });
         });
 
         socket.on("whiteboard:toggle_lock", (data) => {
             handleWhiteboardToggleLock(socket, { ...data, userId });
+        });
+
+        socket.on("whiteboard:cursor_move", (data) => {
+            const { chatId, x, y, tool, userName, timestamp } = data;
+            socket.to(chatId).emit('whiteboard:cursor_move', {
+                userId,
+                x,
+                y,
+                tool,
+                userName,
+                timestamp
+            });
         });
 
         // Voice chat events

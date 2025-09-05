@@ -57,21 +57,19 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#008000'
   ];
 
-  // Initialize Canvas with responsive sizing
+  // Initialize Canvas with fixed sizing for consistency
   useEffect(() => {
     if (!isOpen || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
-    const container = canvas.parentElement;
     
-    // Get container dimensions
-    const containerRect = container.getBoundingClientRect();
-    const maxWidth = Math.min(800, containerRect.width - 32);
-    const maxHeight = Math.min(600, containerRect.height - 32);
+    // Use fixed canvas size for all users to ensure consistency
+    const CANVAS_WIDTH = 800;
+    const CANVAS_HEIGHT = 600;
     
     // Set canvas size
-    canvas.width = maxWidth;
-    canvas.height = maxHeight;
+    canvas.width = CANVAS_WIDTH;
+    canvas.height = CANVAS_HEIGHT;
     
     const context = canvas.getContext('2d');
     context.lineCap = 'round';
@@ -84,7 +82,36 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     
     // Save initial state
     saveCanvasState();
-  }, [isOpen, color, brushSize]);
+  }, [isOpen]);
+
+  // Coordinate normalization functions
+  const normalizeCoordinates = useCallback((x, y) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    
+    // Ensure coordinates are within canvas bounds
+    const clampedX = Math.max(0, Math.min(x, canvas.width));
+    const clampedY = Math.max(0, Math.min(y, canvas.height));
+    
+    return {
+      x: clampedX / canvas.width,
+      y: clampedY / canvas.height
+    };
+  }, []);
+
+  const denormalizeCoordinates = useCallback((normalizedX, normalizedY) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    
+    // Ensure normalized coordinates are within 0-1 range
+    const clampedX = Math.max(0, Math.min(normalizedX, 1));
+    const clampedY = Math.max(0, Math.min(normalizedY, 1));
+    
+    return {
+      x: clampedX * canvas.width,
+      y: clampedY * canvas.height
+    };
+  }, []);
 
   // Handle keyboard events
   useEffect(() => {
@@ -140,6 +167,8 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
   useEffect(() => {
     if (!isOpen || !socket) return;
 
+    console.log('Joining whiteboard session:', { chatId, userId: userInfo.id });
+
     // Join whiteboard session
     socket.emit('whiteboard:join', { 
       chatId, 
@@ -157,9 +186,7 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     // Socket event listeners
     socket.on('whiteboard:user_joined', handleUserJoined);
     socket.on('whiteboard:user_left', handleUserLeft);
-    socket.on('whiteboard:draw_start', handleRemoteDrawStart);
-    socket.on('whiteboard:draw_move', handleRemoteDrawMove);
-    socket.on('whiteboard:draw_end', handleRemoteDrawEnd);
+    socket.on('whiteboard:draw', handleRemoteDraw);
     socket.on('whiteboard:shape_drawn', handleRemoteShape);
     socket.on('whiteboard:text_added', handleRemoteText);
     socket.on('whiteboard:canvas_cleared', handleRemoteClear);
@@ -169,12 +196,11 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     socket.on('whiteboard:lock_status', handleLockStatus);
 
     return () => {
+      console.log('Leaving whiteboard session:', { chatId, userId: userInfo.id });
       socket.emit('whiteboard:leave', { chatId, userId: userInfo.id });
       socket.off('whiteboard:user_joined', handleUserJoined);
       socket.off('whiteboard:user_left', handleUserLeft);
-      socket.off('whiteboard:draw_start', handleRemoteDrawStart);
-      socket.off('whiteboard:draw_move', handleRemoteDrawMove);
-      socket.off('whiteboard:draw_end', handleRemoteDrawEnd);
+      socket.off('whiteboard:draw', handleRemoteDraw);
       socket.off('whiteboard:shape_drawn', handleRemoteShape);
       socket.off('whiteboard:text_added', handleRemoteText);
       socket.off('whiteboard:canvas_cleared', handleRemoteClear);
@@ -203,38 +229,42 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     toast.info('👋 A participant left the whiteboard');
   }, []);
 
-  const handleRemoteDrawStart = useCallback((data) => {
+  const handleRemoteDraw = useCallback((data) => {
     if (data.userId === userInfo.id) return;
 
     const context = contextRef.current;
     if (!context) return;
 
-    context.strokeStyle = data.color || '#000000';
-    context.lineWidth = data.brushSize || 2;
-    context.globalCompositeOperation = data.tool === 'eraser' ? 'destination-out' : 'source-over';
+    const { x0, y0, x1, y1, tool, color, brushSize } = data;
     
+    // Denormalize coordinates
+    const startCoords = denormalizeCoordinates(x0, y0);
+    const endCoords = denormalizeCoordinates(x1, y1);
+    
+    console.log('Received remote draw:', {
+      userId: data.userId,
+      normalized: { x0, y0, x1, y1 },
+      denormalized: { start: startCoords, end: endCoords },
+      tool, color, brushSize
+    });
+    
+    // Set drawing context
+    context.strokeStyle = color || '#000000';
+    context.lineWidth = brushSize || 2;
+    context.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+    
+    // Draw the line segment
     context.beginPath();
-    context.moveTo(data.x, data.y);
-  }, [userInfo.id]);
-
-  const handleRemoteDrawMove = useCallback((data) => {
-    if (data.userId === userInfo.id) return;
-
-    const context = contextRef.current;
-    if (!context) return;
-
-    context.lineTo(data.x, data.y);
+    context.moveTo(startCoords.x, startCoords.y);
+    context.lineTo(endCoords.x, endCoords.y);
     context.stroke();
-  }, [userInfo.id]);
-
-  const handleRemoteDrawEnd = useCallback((data) => {
-    if (data.userId === userInfo.id) return;
+    context.closePath();
     
-    const context = contextRef.current;
-    if (!context) return;
-
-    context.globalCompositeOperation = 'source-over';
-  }, [userInfo.id]);
+    // Reset composite operation
+    if (tool === 'eraser') {
+      context.globalCompositeOperation = 'source-over';
+    }
+  }, [userInfo.id, denormalizeCoordinates]);
 
   const handleRemoteShape = useCallback((data) => {
     if (data.userId === userInfo.id) return;
@@ -242,8 +272,23 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     const context = contextRef.current;
     if (!context) return;
 
-    drawShape(context, data.shape, data.color, data.brushSize);
-  }, [userInfo.id]);
+    // Denormalize shape coordinates
+    const denormalizedShape = { ...data.shape };
+    if (data.shape.type === 'rect') {
+      const coords = denormalizeCoordinates(data.shape.x, data.shape.y);
+      denormalizedShape.x = coords.x;
+      denormalizedShape.y = coords.y;
+      denormalizedShape.width = data.shape.width * canvasRef.current.width;
+      denormalizedShape.height = data.shape.height * canvasRef.current.height;
+    } else if (data.shape.type === 'circle') {
+      const coords = denormalizeCoordinates(data.shape.x, data.shape.y);
+      denormalizedShape.x = coords.x;
+      denormalizedShape.y = coords.y;
+      denormalizedShape.radius = data.shape.radius * Math.min(canvasRef.current.width, canvasRef.current.height);
+    }
+
+    drawShape(context, denormalizedShape, data.color, data.brushSize);
+  }, [userInfo.id, denormalizeCoordinates]);
 
   const handleRemoteText = useCallback((data) => {
     if (data.userId === userInfo.id) return;
@@ -251,8 +296,10 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     const context = contextRef.current;
     if (!context) return;
 
-    drawText(context, data.text, data.x, data.y, data.color, data.fontSize);
-  }, [userInfo.id]);
+    // Denormalize text position
+    const textCoords = denormalizeCoordinates(data.x, data.y);
+    drawText(context, data.text, textCoords.x, textCoords.y, data.color, data.fontSize);
+  }, [userInfo.id, denormalizeCoordinates]);
 
   const handleRemoteClear = useCallback((data) => {
     if (data.userId === userInfo.id) return;
@@ -292,17 +339,97 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     }));
   }, [userInfo.id]);
 
-  const handleBoardState = useCallback((data) => {
+    const handleBoardState = useCallback((data) => {
     const context = contextRef.current;
     if (!context) return;
 
-    const img = new Image();
-    img.onload = () => {
-      context.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      context.drawImage(img, 0, 0);
-    };
-    img.src = data.canvasState;
-  }, []);
+    console.log('Received board state:', data);
+
+    // Clear canvas first
+    context.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    
+    // If there's a canvas state image, load it
+    if (data.canvasState) {
+      const img = new Image();
+      img.onload = () => {
+        context.drawImage(img, 0, 0);
+      };
+      img.src = data.canvasState;
+    }
+    
+    // Replay all actions from history with proper coordinate denormalization
+    if (data.actions && Array.isArray(data.actions)) {
+      console.log(`Replaying ${data.actions.length} actions from history`);
+      data.actions.forEach((action, index) => {
+        try {
+          switch (action.type) {
+            case 'draw':
+              // Denormalize coordinates for replay
+              const startCoords = denormalizeCoordinates(action.x0, action.y0);
+              const endCoords = denormalizeCoordinates(action.x1, action.y1);
+              
+              // Set drawing context
+              context.strokeStyle = action.color || '#000000';
+              context.lineWidth = action.brushSize || 2;
+              context.globalCompositeOperation = action.tool === 'eraser' ? 'destination-out' : 'source-over';
+              
+              // Draw the line segment
+              context.beginPath();
+              context.moveTo(startCoords.x, startCoords.y);
+              context.lineTo(endCoords.x, endCoords.y);
+              context.stroke();
+              context.closePath();
+              
+              // Reset composite operation
+              if (action.tool === 'eraser') {
+                context.globalCompositeOperation = 'source-over';
+              }
+              break;
+            case 'shape_drawn':
+              // Denormalize shape coordinates for replay
+              const denormalizedShape = { ...action.shape };
+              if (action.shape.type === 'rect') {
+                const coords = denormalizeCoordinates(action.shape.x, action.shape.y);
+                denormalizedShape.x = coords.x;
+                denormalizedShape.y = coords.y;
+                denormalizedShape.width = action.shape.width * canvasRef.current.width;
+                denormalizedShape.height = action.shape.height * canvasRef.current.height;
+              } else if (action.shape.type === 'circle') {
+                const coords = denormalizeCoordinates(action.shape.x, action.shape.y);
+                denormalizedShape.x = coords.x;
+                denormalizedShape.y = coords.y;
+                denormalizedShape.radius = action.shape.radius * Math.min(canvasRef.current.width, canvasRef.current.height);
+              }
+              
+              handleRemoteShape({
+                userId: action.userId,
+                shape: denormalizedShape,
+                color: action.color,
+                brushSize: action.brushSize
+              });
+              break;
+            case 'text_added':
+              // Denormalize text position
+              const textCoords = denormalizeCoordinates(action.x, action.y);
+              handleRemoteText({
+                userId: action.userId,
+                text: action.text,
+                x: textCoords.x,
+                y: textCoords.y,
+                color: action.color,
+                fontSize: action.fontSize
+              });
+              break;
+            case 'canvas_cleared':
+              handleRemoteClear({ userId: action.userId });
+              break;
+          }
+        } catch (error) {
+          console.error(`Error replaying action ${index}:`, error, action);
+        }
+      });
+    }
+  }, [denormalizeCoordinates]);
 
   const handleLockStatus = useCallback((data) => {
     setIsLocked(data.isLocked);
@@ -413,7 +540,8 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
   const startDrawing = (e) => {
     if (isLocked && !isAdmin) return;
     
-    const rect = canvasRef.current.getBoundingClientRect();
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
@@ -435,17 +563,8 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     
     setCurrentPath([{ x, y }]);
     
-    // Emit draw start to other users
-    socket.emit('whiteboard:draw_start', {
-      chatId,
-      userId: userInfo.id,
-      x,
-      y,
-      tool,
-      color,
-      brushSize,
-      timestamp: Date.now()
-    });
+    // Store the starting point for the next draw event
+    setLastEmittedTime(Date.now());
   };
 
 
@@ -453,11 +572,16 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
   const draw = (e) => {
     if (!isDrawing || (isLocked && !isAdmin)) return;
     
-    const rect = canvasRef.current.getBoundingClientRect();
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
     const context = contextRef.current;
+    
+    // Get the last point from current path
+    const lastPoint = currentPath[currentPath.length - 1];
+    if (!lastPoint) return;
     
     if (tool === 'pen') {
       context.lineTo(x, y);
@@ -473,21 +597,39 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     
     setCurrentPath(prev => [...prev, { x, y }]);
     
-    // Throttled emit for draw move (every 20ms)
-    if (drawThrottleRef.current) {
-      clearTimeout(drawThrottleRef.current);
-    }
-    
-    drawThrottleRef.current = setTimeout(() => {
-      socket.emit('whiteboard:draw_move', {
-        chatId,
-        userId: userInfo.id,
-        x,
-        y,
-        tool,
-        timestamp: Date.now()
-      });
-    }, 20);
+         // Emit draw event with normalized line segment coordinates
+     const now = Date.now();
+     if (now - lastEmittedTime >= throttleDelay) {
+       // Normalize coordinates before emitting
+       const normalizedLastPoint = normalizeCoordinates(lastPoint.x, lastPoint.y);
+       const normalizedCurrentPoint = normalizeCoordinates(x, y);
+       
+       console.log('Emitting draw event:', {
+         chatId,
+         userId: userInfo.id,
+         from: { x: lastPoint.x, y: lastPoint.y },
+         to: { x, y },
+         normalized: {
+           from: normalizedLastPoint,
+           to: normalizedCurrentPoint
+         },
+         tool, color, brushSize: tool === 'eraser' ? eraserSize : brushSize
+       });
+       
+       socket.emit('whiteboard:draw', {
+         chatId,
+         userId: userInfo.id,
+         x0: normalizedLastPoint.x,
+         y0: normalizedLastPoint.y,
+         x1: normalizedCurrentPoint.x,
+         y1: normalizedCurrentPoint.y,
+         tool,
+         color,
+         brushSize: tool === 'eraser' ? eraserSize : brushSize,
+         timestamp: now
+       });
+       setLastEmittedTime(now);
+     }
     
     // Emit cursor position
     emitCursorPosition(x, y);
@@ -501,18 +643,11 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     if (tool === 'pen' || tool === 'eraser') {
       if (currentPath.length > 1) {
         saveCanvasState();
-        
-        // Emit draw end to other users
-        socket.emit('whiteboard:draw_end', {
-          chatId,
-          userId: userInfo.id,
-          tool,
-          timestamp: Date.now()
-        });
       }
     } else if (shapeStart && (tool === 'rect' || tool === 'circle')) {
       // Handle shape completion
-      const rect = canvasRef.current.getBoundingClientRect();
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
       const x = event?.clientX ? event.clientX - rect.left : shapeStart.x;
       const y = event?.clientY ? event.clientY - rect.top : shapeStart.y;
       
@@ -565,15 +700,30 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
       
       saveCanvasState();
       
-      // Emit shape completion to other users
-      socket.emit('whiteboard:shape_drawn', {
-        chatId,
-        userId: userInfo.id,
-        shape: shapeData,
-        color,
-        brushSize,
-        timestamp: Date.now()
-      });
+             // Normalize shape coordinates before emitting
+       const normalizedShape = { ...shapeData };
+       if (tool === 'rect') {
+         const coords = normalizeCoordinates(shapeData.x, shapeData.y);
+         normalizedShape.x = coords.x;
+         normalizedShape.y = coords.y;
+         normalizedShape.width = shapeData.width / canvasRef.current.width;
+         normalizedShape.height = shapeData.height / canvasRef.current.height;
+       } else if (tool === 'circle') {
+         const coords = normalizeCoordinates(shapeData.x, shapeData.y);
+         normalizedShape.x = coords.x;
+         normalizedShape.y = coords.y;
+         normalizedShape.radius = shapeData.radius / Math.min(canvasRef.current.width, canvasRef.current.height);
+       }
+       
+       // Emit shape completion to other users
+       socket.emit('whiteboard:shape_drawn', {
+         chatId,
+         userId: userInfo.id,
+         shape: normalizedShape,
+         color,
+         brushSize,
+         timestamp: Date.now()
+       });
     }
     
     setCurrentPath([]);
@@ -678,17 +828,20 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     
     saveCanvasState();
     
-    // Emit text addition to other users
-    socket.emit('whiteboard:text_added', {
-      chatId,
-      userId: userInfo.id,
-      text: textInput,
-      x: textPosition.x,
-      y: textPosition.y,
-      color,
-      fontSize: brushSize * 8,
-      timestamp: Date.now()
-    });
+         // Normalize text position before emitting
+     const normalizedTextPos = normalizeCoordinates(textPosition.x, textPosition.y);
+     
+     // Emit text addition to other users
+     socket.emit('whiteboard:text_added', {
+       chatId,
+       userId: userInfo.id,
+       text: textInput,
+       x: normalizedTextPos.x,
+       y: normalizedTextPos.y,
+       color,
+       fontSize: brushSize * 8,
+       timestamp: Date.now()
+     });
     
     setIsTextInputVisible(false);
     setTextInput('');
@@ -782,6 +935,27 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     context.strokeStyle = color;
     context.lineWidth = brushSize;
   }, [color, brushSize]);
+
+  // Ensure canvas is properly initialized when component mounts
+  useEffect(() => {
+    if (isOpen && canvasRef.current && !contextRef.current) {
+      const canvas = canvasRef.current;
+      const CANVAS_WIDTH = 800;
+      const CANVAS_HEIGHT = 600;
+      
+      canvas.width = CANVAS_WIDTH;
+      canvas.height = CANVAS_HEIGHT;
+      
+      const context = canvas.getContext('2d');
+      context.lineCap = 'round';
+      context.strokeStyle = color;
+      context.lineWidth = brushSize;
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      
+      contextRef.current = context;
+    }
+  }, [isOpen, color, brushSize]);
 
   if (!isOpen) return null;
 
