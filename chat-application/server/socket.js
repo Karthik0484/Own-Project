@@ -341,6 +341,77 @@ export default function setupSocket(server) {
     });
   };
 
+  // New handlers for continuous drawing
+  const handleWhiteboardPathStart = (socket, data) => {
+    const { chatId, userId, x, y, tool, color, brushSize, timestamp } = data;
+    const session = whiteboardSessions.get(chatId);
+    
+    if (!session) return;
+    
+    // Check if whiteboard is locked and user is not admin
+    if (session.locked && session.adminId !== userId) {
+      socket.emit('whiteboard:error', { message: 'Whiteboard is locked by admin' });
+      return;
+    }
+    
+    // Broadcast path start to all participants
+    socket.to(chatId).emit('whiteboard:path_start', {
+      userId,
+      x,
+      y,
+      tool,
+      color,
+      brushSize,
+      timestamp
+    });
+  };
+
+  const handleWhiteboardPathPoint = (socket, data) => {
+    const { chatId, userId, x, y, tool, color, brushSize, timestamp } = data;
+    const session = whiteboardSessions.get(chatId);
+    
+    if (!session) return;
+    
+    // Check if whiteboard is locked and user is not admin
+    if (session.locked && session.adminId !== userId) {
+      socket.emit('whiteboard:error', { message: 'Whiteboard is locked by admin' });
+      return;
+    }
+    
+    // Broadcast path point to all participants
+    socket.to(chatId).emit('whiteboard:path_point', {
+      userId,
+      x,
+      y,
+      tool,
+      color,
+      brushSize,
+      timestamp
+    });
+  };
+
+  const handleWhiteboardPathEnd = (socket, data) => {
+    const { chatId, userId, tool, color, brushSize, timestamp } = data;
+    const session = whiteboardSessions.get(chatId);
+    
+    if (!session) return;
+    
+    // Check if whiteboard is locked and user is not admin
+    if (session.locked && session.adminId !== userId) {
+      socket.emit('whiteboard:error', { message: 'Whiteboard is locked by admin' });
+      return;
+    }
+    
+    // Broadcast path end to all participants
+    socket.to(chatId).emit('whiteboard:path_end', {
+      userId,
+      tool,
+      color,
+      brushSize,
+      timestamp
+    });
+  };
+
   const handleWhiteboardSnapshot = async (socket, data) => {
     const { chatId, imageData, channelId, userId } = data;
     
@@ -710,12 +781,24 @@ export default function setupSocket(server) {
         });
 
         socket.on("whiteboard:draw", (data) => {
-            handleWhiteboardDraw(socket, { ...data, userId });
-        });
+  handleWhiteboardDraw(socket, { ...data, userId });
+});
 
-        socket.on("whiteboard:shape_drawn", (data) => {
-            handleWhiteboardShape(socket, { ...data, userId });
-        });
+socket.on("whiteboard:path_start", (data) => {
+  handleWhiteboardPathStart(socket, { ...data, userId });
+});
+
+socket.on("whiteboard:path_point", (data) => {
+  handleWhiteboardPathPoint(socket, { ...data, userId });
+});
+
+socket.on("whiteboard:path_end", (data) => {
+  handleWhiteboardPathEnd(socket, { ...data, userId });
+});
+
+socket.on("whiteboard:shape_drawn", (data) => {
+  handleWhiteboardShape(socket, { ...data, userId });
+});
 
         socket.on("whiteboard:text_added", (data) => {
             handleWhiteboardText(socket, { ...data, userId });

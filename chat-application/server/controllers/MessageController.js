@@ -50,63 +50,117 @@ export const uploadFile = async (request, response, next) => {
 export const getConversations = async (req, res, next) => {
   try {
     const userId = req.userId;
+    console.log("getConversations - userId:", userId);
 
     if (!userId) {
-      return res.status(400).send("User ID is required.");
+      console.log("getConversations - No userId found");
+      return res.status(400).json({ error: "User ID is required." });
     }
 
+    console.log("getConversations - Fetching messages for userId:", userId);
+    
     // Get all messages where the current user is either sender or recipient
-    const messages = await Message.find({
-      $or: [
-        { sender: userId },
-        { recipient: userId },
-      ],
-    }).populate("sender", "firstName lastName image color lastSeen")
-      .populate("recipient", "firstName lastName image color lastSeen")
-      .sort({ timestamp: -1 });
+    let messages;
+    try {
+      messages = await Message.find({
+        $or: [
+          { sender: userId },
+          { recipient: userId },
+        ],
+      }).populate("sender", "firstName lastName image color lastSeen")
+        .populate("recipient", "firstName lastName image color lastSeen")
+        .sort({ timestamp: -1 })
+        .lean(); // Use lean() for better performance
+    } catch (dbError) {
+      console.error("getConversations - Database error:", dbError);
+      return res.status(500).json({ 
+        error: "Database error", 
+        message: "Failed to fetch messages from database" 
+      });
+    }
+
+    console.log("getConversations - Found messages:", messages ? messages.length : 0);
+
+    // If no messages found, return empty array
+    if (!messages || messages.length === 0) {
+      console.log("getConversations - No messages found, returning empty conversations");
+      return res.status(200).json({ conversations: [] });
+    }
 
     // Group messages by conversation (other user)
     const conversations = new Map();
 
-    messages.forEach(message => {
-      // Determine the other user in the conversation
-      const otherUser = message.sender._id.toString() === userId 
-        ? message.recipient 
-        : message.sender;
-
-      if (!otherUser) return; // Skip if no recipient (group messages)
-
-      const otherUserId = otherUser._id.toString();
-
-      if (!conversations.has(otherUserId)) {
-        conversations.set(otherUserId, {
-          _id: otherUser._id,
-          firstName: otherUser.firstName,
-          lastName: otherUser.lastName,
-          image: otherUser.image,
-          color: otherUser.color,
-          lastSeen: otherUser.lastSeen,
-          lastMessageText: message.content,
-          lastMessageAt: message.timestamp,
-          lastMessageType: message.messageType,
-        });
-      } else {
-        // Update with more recent message if this message is newer
-        const existing = conversations.get(otherUserId);
-        if (message.timestamp > existing.lastMessageAt) {
-          existing.lastMessageText = message.content;
-          existing.lastMessageAt = message.timestamp;
-          existing.lastMessageType = message.messageType;
+    messages.forEach((message, index) => {
+      try {
+        // Check if message has required fields
+        if (!message.sender || !message.sender._id) {
+          console.log(`getConversations - Message ${index} missing sender:`, message);
+          return;
         }
+
+        // Determine the other user in the conversation
+        const otherUser = message.sender._id.toString() === userId 
+          ? message.recipient 
+          : message.sender;
+
+        if (!otherUser || !otherUser._id) {
+          console.log(`getConversations - Message ${index} missing otherUser:`, message);
+          return; // Skip if no recipient (group messages)
+        }
+
+        const otherUserId = otherUser._id.toString();
+
+        if (!conversations.has(otherUserId)) {
+          conversations.set(otherUserId, {
+            _id: otherUser._id,
+            firstName: otherUser.firstName || '',
+            lastName: otherUser.lastName || '',
+            image: otherUser.image || '',
+            color: otherUser.color || '',
+            lastSeen: otherUser.lastSeen || new Date(),
+            lastMessageText: message.content || '',
+            lastMessageAt: message.timestamp || new Date(),
+            lastMessageType: message.messageType || 'text',
+          });
+        } else {
+          // Update with more recent message if this message is newer
+          const existing = conversations.get(otherUserId);
+          if (message.timestamp > existing.lastMessageAt) {
+            existing.lastMessageText = message.content || '';
+            existing.lastMessageAt = message.timestamp || new Date();
+            existing.lastMessageType = message.messageType || 'text';
+          }
+        }
+      } catch (messageError) {
+        console.error(`getConversations - Error processing message ${index}:`, messageError, message);
       }
     });
 
     const conversationsList = Array.from(conversations.values());
+    console.log("getConversations - Created conversations list:", conversationsList.length);
+    
+    // Sort conversations by lastMessageAt timestamp (most recent first)
+    const sortedConversations = conversationsList.sort((a, b) => {
+      try {
+        const timestampA = new Date(a.lastMessageAt).getTime();
+        const timestampB = new Date(b.lastMessageAt).getTime();
+        return timestampB - timestampA; // Descending order (newest first)
+      } catch (sortError) {
+        console.error("getConversations - Error sorting conversations:", sortError, { a, b });
+        return 0;
+      }
+    });
 
-    return res.status(200).json({ conversations: conversationsList });
+    console.log("getConversations - Returning sorted conversations:", sortedConversations.length);
+    return res.status(200).json({ conversations: sortedConversations });
   } catch (error) {
     console.error("Error fetching conversations:", error);
-    return res.status(500).send("Internal Server Error");
+    console.error("Error stack:", error.stack);
+    return res.status(500).json({ 
+      error: "Internal Server Error", 
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 

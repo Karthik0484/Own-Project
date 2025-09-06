@@ -8,12 +8,25 @@ import CreateChannel from "./components/create-channel";
 import { apiClient } from "@/lib/api-client";
 
 const ContactsContainer = () => {
-  const { conversations, loadConversations, addConversation,channels,setChannels,setDirectMessagesContacts, userInfo } = useAppStore();
+  const { 
+    conversations, 
+    loadConversations, 
+    addConversation,
+    channels,
+    setChannels,
+    setDirectMessagesContacts, 
+    userInfo,
+    conversationsLoading,
+    conversationsError
+  } = useAppStore();
   const socket = useSocket();
 
+  // Load conversations on component mount and when userInfo changes
   useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+    if (userInfo) {
+      loadConversations();
+    }
+  }, [loadConversations, userInfo]);
 
   // Always fetch channels on mount and when userInfo changes
   useEffect(() => {
@@ -84,7 +97,31 @@ const ContactsContainer = () => {
           <NewDM />
         </div>
         <div className="max-h-[38vh] overflow-y-auto scrollbar-hidden">
-          <ContactList conversations={conversations} />
+          {conversationsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-neutral-400 text-sm">Loading conversations...</div>
+            </div>
+          ) : conversationsError ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-red-400 text-sm text-center px-4">
+                {conversationsError}
+                <button 
+                  onClick={() => loadConversations()} 
+                  className="block mt-2 text-blue-400 hover:text-blue-300 underline"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          ) : conversations.length === 0 ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-neutral-400 text-sm text-center px-4">
+                No conversations yet. Start a new DM to begin chatting!
+              </div>
+            </div>
+          ) : (
+            <ContactList conversations={conversations} />
+          )}
         </div>
        
       </div>

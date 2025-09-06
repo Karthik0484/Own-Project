@@ -49,8 +49,11 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
   const [remoteCursors, setRemoteCursors] = useState({});
   const [isConnected, setIsConnected] = useState(false);
   const [lastEmittedTime, setLastEmittedTime] = useState(0);
-  const [throttleDelay] = useState(20); // 20ms throttle for mouse move events
+  const [throttleDelay] = useState(16); // 16ms throttle for 60fps smooth drawing
   const drawThrottleRef = useRef(null);
+  const [isDrawingPath, setIsDrawingPath] = useState(false);
+  const [pathPoints, setPathPoints] = useState([]);
+  const [lastEmittedPoint, setLastEmittedPoint] = useState(null);
 
   const colors = [
     '#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', 
@@ -73,10 +76,15 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     
     const context = canvas.getContext('2d');
     context.lineCap = 'round';
+    context.lineJoin = 'round';
     context.strokeStyle = color;
     context.lineWidth = brushSize;
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Enable smooth drawing
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
     
     contextRef.current = context;
     
@@ -187,6 +195,9 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     socket.on('whiteboard:user_joined', handleUserJoined);
     socket.on('whiteboard:user_left', handleUserLeft);
     socket.on('whiteboard:draw', handleRemoteDraw);
+    socket.on('whiteboard:path_start', handleRemotePathStart);
+    socket.on('whiteboard:path_point', handleRemotePathPoint);
+    socket.on('whiteboard:path_end', handleRemotePathEnd);
     socket.on('whiteboard:shape_drawn', handleRemoteShape);
     socket.on('whiteboard:text_added', handleRemoteText);
     socket.on('whiteboard:canvas_cleared', handleRemoteClear);
@@ -201,6 +212,9 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
       socket.off('whiteboard:user_joined', handleUserJoined);
       socket.off('whiteboard:user_left', handleUserLeft);
       socket.off('whiteboard:draw', handleRemoteDraw);
+      socket.off('whiteboard:path_start', handleRemotePathStart);
+      socket.off('whiteboard:path_point', handleRemotePathPoint);
+      socket.off('whiteboard:path_end', handleRemotePathEnd);
       socket.off('whiteboard:shape_drawn', handleRemoteShape);
       socket.off('whiteboard:text_added', handleRemoteText);
       socket.off('whiteboard:canvas_cleared', handleRemoteClear);
@@ -265,6 +279,87 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
       context.globalCompositeOperation = 'source-over';
     }
   }, [userInfo.id, denormalizeCoordinates]);
+
+  // New handlers for continuous drawing
+  const handleRemotePathStart = useCallback((data) => {
+    if (data.userId === userInfo.id) return;
+
+    const context = contextRef.current;
+    if (!context) return;
+
+    const { x, y, tool, color, brushSize } = data;
+    const coords = denormalizeCoordinates(x, y);
+    
+    // Set up drawing context for smooth lines
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.strokeStyle = color || '#000000';
+    context.lineWidth = brushSize || 2;
+    context.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+    
+    // Start new path
+    context.beginPath();
+    context.moveTo(coords.x, coords.y);
+    
+    // Store the starting point for continuous drawing
+    setLastEmittedPoint({ x: coords.x, y: coords.y, userId: data.userId });
+    
+    console.log('Remote path start:', { userId: data.userId, coords, tool, color, brushSize });
+  }, [userInfo.id, denormalizeCoordinates]);
+
+  const handleRemotePathPoint = useCallback((data) => {
+    if (data.userId === userInfo.id) return;
+
+    const context = contextRef.current;
+    if (!context) return;
+
+    const { x, y, tool, color, brushSize } = data;
+    const coords = denormalizeCoordinates(x, y);
+    
+    // Set drawing context
+    context.strokeStyle = color || '#000000';
+    context.lineWidth = brushSize || 2;
+    context.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+    
+    if (tool === 'pen') {
+      // Draw continuous line - don't call beginPath again, just continue the path
+      context.lineTo(coords.x, coords.y);
+      context.stroke();
+    } else if (tool === 'eraser') {
+      // Calculate eraser position
+      const eraserSize = brushSize || 20;
+      const eraserX = coords.x - eraserSize / 2;
+      const eraserY = coords.y - eraserSize / 2;
+      
+      // Clear the rectangular area
+      context.clearRect(eraserX, eraserY, eraserSize, eraserSize);
+    }
+    
+    // Reset composite operation
+    if (tool === 'eraser') {
+      context.globalCompositeOperation = 'source-over';
+    }
+    
+    console.log('Remote path point:', { userId: data.userId, coords, tool });
+  }, [userInfo.id, denormalizeCoordinates]);
+
+  const handleRemotePathEnd = useCallback((data) => {
+    if (data.userId === userInfo.id) return;
+
+    const context = contextRef.current;
+    if (!context) return;
+
+    // Close the path
+    context.closePath();
+    
+    // Reset composite operation
+    context.globalCompositeOperation = 'source-over';
+    
+    // Clear the last emitted point for this user
+    setLastEmittedPoint(prev => prev?.userId === data.userId ? null : prev);
+    
+    console.log('Remote path end:', { userId: data.userId });
+  }, [userInfo.id]);
 
   const handleRemoteShape = useCallback((data) => {
     if (data.userId === userInfo.id) return;
@@ -557,20 +652,47 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     }
     
     setIsDrawing(true);
+    setIsDrawingPath(true);
     const context = contextRef.current;
+    
+    // Set up drawing context for smooth lines
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.strokeStyle = color;
+    context.lineWidth = tool === 'eraser' ? eraserSize : brushSize;
+    context.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+    
+    // Start new path
     context.beginPath();
     context.moveTo(x, y);
     
+    // Initialize path tracking
+    const startPoint = { x, y, timestamp: Date.now() };
+    setPathPoints([startPoint]);
+    setLastEmittedPoint(startPoint);
     setCurrentPath([{ x, y }]);
     
-    // Store the starting point for the next draw event
+    // Emit path start event
+    const normalizedPoint = normalizeCoordinates(x, y);
+    console.log('Emitting path start:', { chatId, userId: userInfo.id, normalizedPoint, tool, color });
+    socket.emit('whiteboard:path_start', {
+      chatId,
+      userId: userInfo.id,
+      x: normalizedPoint.x,
+      y: normalizedPoint.y,
+      tool,
+      color,
+      brushSize: tool === 'eraser' ? eraserSize : brushSize,
+      timestamp: Date.now()
+    });
+    
     setLastEmittedTime(Date.now());
   };
 
 
 
   const draw = (e) => {
-    if (!isDrawing || (isLocked && !isAdmin)) return;
+    if (!isDrawing || !isDrawingPath || (isLocked && !isAdmin)) return;
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -578,12 +700,15 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
     
     const context = contextRef.current;
+    const now = Date.now();
     
-    // Get the last point from current path
-    const lastPoint = currentPath[currentPath.length - 1];
-    if (!lastPoint) return;
+    // Add point to current path
+    const newPoint = { x, y, timestamp: now };
+    setPathPoints(prev => [...prev, newPoint]);
+    setCurrentPath(prev => [...prev, { x, y }]);
     
     if (tool === 'pen') {
+      // Draw continuous line
       context.lineTo(x, y);
       context.stroke();
     } else if (tool === 'eraser') {
@@ -595,41 +720,25 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
       context.clearRect(eraserX, eraserY, eraserSize, eraserSize);
     }
     
-    setCurrentPath(prev => [...prev, { x, y }]);
-    
-         // Emit draw event with normalized line segment coordinates
-     const now = Date.now();
-     if (now - lastEmittedTime >= throttleDelay) {
-       // Normalize coordinates before emitting
-       const normalizedLastPoint = normalizeCoordinates(lastPoint.x, lastPoint.y);
-       const normalizedCurrentPoint = normalizeCoordinates(x, y);
-       
-       console.log('Emitting draw event:', {
-         chatId,
-         userId: userInfo.id,
-         from: { x: lastPoint.x, y: lastPoint.y },
-         to: { x, y },
-         normalized: {
-           from: normalizedLastPoint,
-           to: normalizedCurrentPoint
-         },
-         tool, color, brushSize: tool === 'eraser' ? eraserSize : brushSize
-       });
-       
-       socket.emit('whiteboard:draw', {
-         chatId,
-         userId: userInfo.id,
-         x0: normalizedLastPoint.x,
-         y0: normalizedLastPoint.y,
-         x1: normalizedCurrentPoint.x,
-         y1: normalizedCurrentPoint.y,
-         tool,
-         color,
-         brushSize: tool === 'eraser' ? eraserSize : brushSize,
-         timestamp: now
-       });
-       setLastEmittedTime(now);
-     }
+    // Throttled emission of path points for smooth real-time collaboration
+    if (now - lastEmittedTime >= throttleDelay) {
+      const normalizedPoint = normalizeCoordinates(x, y);
+      
+      // Emit path point for continuous drawing
+      socket.emit('whiteboard:path_point', {
+        chatId,
+        userId: userInfo.id,
+        x: normalizedPoint.x,
+        y: normalizedPoint.y,
+        tool,
+        color,
+        brushSize: tool === 'eraser' ? eraserSize : brushSize,
+        timestamp: now
+      });
+      
+      setLastEmittedPoint(newPoint);
+      setLastEmittedTime(now);
+    }
     
     // Emit cursor position
     emitCursorPosition(x, y);
@@ -639,11 +748,26 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     if (!isDrawing && !shapeStart) return;
     
     setIsDrawing(false);
+    setIsDrawingPath(false);
     
     if (tool === 'pen' || tool === 'eraser') {
       if (currentPath.length > 1) {
+        // Emit path end event
+        socket.emit('whiteboard:path_end', {
+          chatId,
+          userId: userInfo.id,
+          tool,
+          color,
+          brushSize: tool === 'eraser' ? eraserSize : brushSize,
+          timestamp: Date.now()
+        });
+        
         saveCanvasState();
       }
+      
+      // Reset path tracking
+      setPathPoints([]);
+      setLastEmittedPoint(null);
     } else if (shapeStart && (tool === 'rect' || tool === 'circle')) {
       // Handle shape completion
       const canvas = canvasRef.current;
@@ -948,10 +1072,15 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
       
       const context = canvas.getContext('2d');
       context.lineCap = 'round';
+      context.lineJoin = 'round';
       context.strokeStyle = color;
       context.lineWidth = brushSize;
       context.fillStyle = '#ffffff';
       context.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Enable smooth drawing
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
       
       contextRef.current = context;
     }

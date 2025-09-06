@@ -28,17 +28,12 @@ const ContactList = ({ conversations, isChannel = false}) => {
 
     // Normalize to array to avoid runtime errors when a non-array sneaks in after deploy
     const conversationsArray = Array.isArray(conversations) ? conversations : [];
-    // Sort conversations by the most recent message timestamp
-    const sortedConversations = [...conversationsArray].sort((a, b) => {
-        const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
-        const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
-        return timeB - timeA;
-    });
+    // Conversations are already sorted by timestamp in the store, so no need to sort again
 
     return (
         <div className='mt-5'>
-            {sortedConversations.length > 0 ? (
-                sortedConversations.map((conversation) => {
+            {conversationsArray.length > 0 ? (
+                conversationsArray.map((conversation) => {
                     const isSelected = selectedUserId === conversation._id;
                     const unreadCount = unreadCounts?.[conversation._id] || 0;
                     // For channels, use name; for DMs, use firstName/lastName

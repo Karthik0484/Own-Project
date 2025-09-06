@@ -9,6 +9,8 @@ export const createChatSlice = (set,get) => ({
     fileUploadProgress:0,
     fileDownloadProgress:0,
     channels: [],
+    conversationsLoading: false,
+    conversationsError: null,
     setChannels: (channelsInput) => {
       const nextChannels = Array.isArray(channelsInput)
         ? channelsInput
@@ -43,9 +45,11 @@ export const createChatSlice = (set,get) => ({
       const { conversations, selectedChatData } = get();
       const existingConversationIndex = conversations.findIndex(c => c._id === conversation._id);
 
+      let updatedConversations;
+      
       if (existingConversationIndex !== -1) {
         // Update existing conversation's last message details
-        const updatedConversations = [...conversations];
+        updatedConversations = [...conversations];
         updatedConversations[existingConversationIndex] = {
           ...updatedConversations[existingConversationIndex],
           lastMessageText: conversation.lastMessageText,
@@ -53,11 +57,19 @@ export const createChatSlice = (set,get) => ({
           lastMessageType: conversation.lastMessageType,
           lastSeen: conversation.lastSeen,
         };
-        set({ conversations: updatedConversations });
       } else {
         // Add new conversation to the list
-        set({ conversations: [conversation, ...conversations] });
+        updatedConversations = [conversation, ...conversations];
       }
+      
+      // Sort conversations by lastMessageAt timestamp (most recent first)
+      const sortedConversations = updatedConversations.sort((a, b) => {
+        const timestampA = new Date(a.lastMessageAt).getTime();
+        const timestampB = new Date(b.lastMessageAt).getTime();
+        return timestampB - timestampA; // Descending order (newest first)
+      });
+      
+      set({ conversations: sortedConversations });
     },
     markConversationAsRead: (conversationId) => {
       const { unreadCounts } = get();
@@ -135,6 +147,8 @@ export const createChatSlice = (set,get) => ({
     },
     loadConversations: async () => {
         console.log("Loading conversations...");
+        set({ conversationsLoading: true, conversationsError: null });
+        
         try {
             const { apiClient } = await import("@/lib/api-client");
             const { GET_CONVERSATIONS_ROUTE } = await import("@/utils/constants");
@@ -146,16 +160,49 @@ export const createChatSlice = (set,get) => ({
             console.log("Conversations response:", response.data);
             
             if (response.status === 200 && response.data.conversations) {
-                console.log("Setting conversations:", response.data.conversations);
-                set({ conversations: response.data.conversations });
+                // Sort conversations by lastMessageAt timestamp (most recent first)
+                const sortedConversations = response.data.conversations.sort((a, b) => {
+                    const timestampA = new Date(a.lastMessageAt).getTime();
+                    const timestampB = new Date(b.lastMessageAt).getTime();
+                    return timestampB - timestampA; // Descending order (newest first)
+                });
+                
+                console.log("Setting sorted conversations:", sortedConversations);
+                set({ 
+                    conversations: sortedConversations,
+                    conversationsLoading: false,
+                    conversationsError: null
+                });
+            } else {
+                set({ 
+                    conversations: [],
+                    conversationsLoading: false,
+                    conversationsError: "No conversations found"
+                });
             }
         } catch (error) {
             console.error("Error loading conversations:", error);
+            set({ 
+                conversations: [],
+                conversationsLoading: false,
+                conversationsError: error.message || "Failed to load conversations"
+            });
         }
     },
     setOnlineStatus: (userId, isOnline) => {
         const { onlineUsers } = get();
         set({ onlineUsers: { ...onlineUsers, [userId]: isOnline } });
+    },
+    refreshConversations: async () => {
+        const { loadConversations } = get();
+        await loadConversations();
+    },
+    clearConversations: () => {
+        set({ 
+            conversations: [],
+            conversationsLoading: false,
+            conversationsError: null
+        });
     },
     updateMessageReadStatus: (recipientId, messageIds) => {
         // Update read status for messages in selectedChatMessages
