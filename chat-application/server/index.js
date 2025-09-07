@@ -12,6 +12,7 @@ import setupSocket from "./socket.js";
 import channelRoutes from "./routes/ChannelRoutes.js";
 import Channel from "./models/ChannelModel.js";
 import pushRoutes from "./routes/push.routes.js";
+import userRoutes from "./routes/UserRoutes.js";
 
 dotenv.config();
 
@@ -82,6 +83,7 @@ app.use("/api/contacts", contactsRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/channel", channelRoutes)
 app.use("/api/push", pushRoutes)
+app.use("/api/users", userRoutes)
 
 const server = app.listen(port, () => {
     console.log(`Server is running on port ${port}`);

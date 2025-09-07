@@ -69,18 +69,29 @@ const UserInfoDrawer = ({ open, onClose }) => {
     
     try {
       setLoading(true);
-      const response = await apiClient.get(`/api/users/${userId}/profile`, { 
+      
+      const response = await apiClient.get(`/api/users/${userId}`, { 
         withCredentials: true 
       });
       
       if (response.data?.success) {
         setUserDetails(response.data.user);
       } else {
-        toast.error('Failed to load user details');
+        toast.error(response.data?.error || 'Failed to load user details');
       }
     } catch (error) {
-      console.error('Error fetching user details:', error);
-      toast.error('Failed to load user details');
+      // Provide more specific error messages
+      if (error.response?.status === 404) {
+        toast.error('User not found');
+      } else if (error.response?.status === 401) {
+        toast.error('Please log in to view user details');
+      } else if (error.response?.status >= 500) {
+        toast.error('Server error. Please try again later');
+      } else if (error.code === 'NETWORK_ERROR' || !error.response) {
+        toast.error('Could not load profile. Try again.');
+      } else {
+        toast.error('Failed to load user details. Please check your connection');
+      }
     } finally {
       setLoading(false);
     }
@@ -92,7 +103,7 @@ const UserInfoDrawer = ({ open, onClose }) => {
     
     try {
       setMediaLoading(true);
-      const response = await apiClient.get(`/api/messages/shared-media`, {
+      const response = await apiClient.get(`/api/users/messages/shared-media`, {
         params: {
           userId,
           currentUserId: userInfo.id,
@@ -119,8 +130,8 @@ const UserInfoDrawer = ({ open, onClose }) => {
         setMediaPage(page);
       }
     } catch (error) {
-      console.error('Error fetching shared media:', error);
-      toast.error('Failed to load shared media');
+      // Don't show error toast for shared media as it's not critical
+      setSharedMedia({ images: [], files: [], links: [] });
     } finally {
       setMediaLoading(false);
     }
@@ -132,7 +143,7 @@ const UserInfoDrawer = ({ open, onClose }) => {
     
     try {
       setMutualLoading(true);
-      const response = await apiClient.get(`/api/channels/mutual`, {
+      const response = await apiClient.get(`/api/users/channels/mutual`, {
         params: {
           userId,
           currentUserId: userInfo.id
@@ -146,7 +157,7 @@ const UserInfoDrawer = ({ open, onClose }) => {
         setMutualChannels([]);
       }
     } catch (error) {
-      console.error('Error fetching mutual channels:', error);
+      // Don't show error toast for mutual channels as it's not critical
       setMutualChannels([]);
     } finally {
       setMutualLoading(false);
@@ -168,6 +179,8 @@ const UserInfoDrawer = ({ open, onClose }) => {
       }
     } catch (error) {
       console.error('Error fetching mute status:', error);
+      // Default to unmuted if there's an error
+      setIsMuted(false);
     }
   }, [userInfo?.id]);
 
@@ -176,6 +189,9 @@ const UserInfoDrawer = ({ open, onClose }) => {
     if (!open || !selectedChatData?._id) return;
     
     const userId = selectedChatData._id;
+    
+    // Reset user details when opening
+    setUserDetails(null);
     
     // Fetch all data
     fetchUserDetails(userId);
@@ -416,11 +432,13 @@ const UserInfoDrawer = ({ open, onClose }) => {
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+            <span className="ml-2 text-gray-400">Loading user details...</span>
           </div>
         ) : (
           <>
             {/* Profile Tab */}
-            {activeTab === 'profile' && userDetails && (
+            {activeTab === 'profile' && (
+              userDetails ? (
               <div className="p-6 space-y-6">
                 {/* Profile Section */}
                 <div className="text-center space-y-4">
@@ -562,6 +580,105 @@ const UserInfoDrawer = ({ open, onClose }) => {
                   </div>
                 </div>
               </div>
+              ) : (
+                <div className="p-6">
+                  {/* Show basic info from selectedChatData as fallback */}
+                  {selectedChatData ? (
+                    <div className="space-y-6">
+                      {/* Basic Profile Section */}
+                      <div className="text-center space-y-4">
+                        <div className="relative inline-block">
+                          <Avatar className="w-24 h-24 rounded-full overflow-hidden mx-auto">
+                            {selectedChatData.image && (
+                              <AvatarImage
+                                src={selectedChatData.image.startsWith('http') ? selectedChatData.image : `${HOST}/${selectedChatData.image.replace(/^\//, '')}`}
+                                alt="profile"
+                                className="object-cover w-full h-full"
+                                loading="lazy"
+                                onError={(e) => { 
+                                  e.currentTarget.onerror = null; 
+                                  e.currentTarget.style.display = 'none'; 
+                                  const fb = e.currentTarget.parentNode.querySelector('.avatar-fallback'); 
+                                  if (fb) fb.style.display = 'flex'; 
+                                }}
+                              />
+                            )}
+                            <AvatarFallback className="avatar-fallback rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-2xl w-24 h-24">
+                              {selectedChatData.firstName ? selectedChatData.firstName[0].toUpperCase() : selectedChatData.email?.[0]?.toUpperCase() || '?'}
+                            </AvatarFallback>
+                          </Avatar>
+                          
+                          {/* Online Status */}
+                          <div className="absolute -bottom-1 -right-1">
+                            <div className={`w-6 h-6 rounded-full border-2 border-[#11121a] ${
+                              isOnline ? 'bg-green-500' : 'bg-gray-500'
+                            }`}></div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h3 className="text-xl font-semibold text-white">
+                            {selectedChatData.firstName && selectedChatData.lastName 
+                              ? `${selectedChatData.firstName} ${selectedChatData.lastName}`.trim()
+                              : selectedChatData.email || 'Unknown User'
+                            }
+                          </h3>
+                          <p className="text-gray-400 text-sm">{selectedChatData.email}</p>
+                          
+                          {/* Last Seen */}
+                          <div className="mt-2">
+                            {isOnline ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <span className="w-2 h-2 bg-green-400 rounded-full mr-1"></span>
+                                Online
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-sm">
+                                {lastSeenText}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Error Message */}
+                      <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-yellow-400 mb-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          <span className="font-medium">Limited Profile Information</span>
+                        </div>
+                        <p className="text-gray-300 text-sm mb-3">
+                          Unable to load full profile details. Showing basic information from chat data.
+                        </p>
+                        <button
+                          onClick={() => fetchUserDetails(selectedChatData._id)}
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-sm transition-colors duration-200"
+                        >
+                          Retry Loading Full Profile
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <div className="text-gray-400 mb-4">
+                        <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                        <h3 className="text-lg font-medium text-white mb-2">Could not load profile</h3>
+                        <p className="text-gray-400 mb-4">There was an error loading this user's profile information.</p>
+                        <button
+                          onClick={() => fetchUserDetails(selectedChatData?._id)}
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+                        >
+                          Try Again
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
             )}
 
             {/* Media Tab */}

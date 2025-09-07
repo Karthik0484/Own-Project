@@ -1,6 +1,7 @@
 import Message from "../models/MessagesModel.js";
 import User from "../models/UserModel.js";
 import {mkdirSync, existsSync, renameSync} from "fs";
+import mongoose from "mongoose";
 
 export const getMessages = async (req, res, next) => {
   try {
@@ -55,6 +56,12 @@ export const getConversations = async (req, res, next) => {
     if (!userId) {
       console.log("getConversations - No userId found");
       return res.status(400).json({ error: "User ID is required." });
+    }
+
+    // Validate userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.log("getConversations - Invalid userId format:", userId);
+      return res.status(400).json({ error: "Invalid user ID format." });
     }
 
     console.log("getConversations - Fetching messages for userId:", userId);
@@ -160,6 +167,37 @@ export const getConversations = async (req, res, next) => {
       error: "Internal Server Error", 
       message: error.message,
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
+export const testConversations = async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    console.log("testConversations - userId:", userId);
+    
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required." });
+    }
+
+    // Simple test to check if we can connect to the database
+    const messageCount = await Message.countDocuments({
+      $or: [
+        { sender: userId },
+        { recipient: userId },
+      ],
+    });
+
+    return res.status(200).json({ 
+      message: "Test successful",
+      userId: userId,
+      messageCount: messageCount
+    });
+  } catch (error) {
+    console.error("testConversations error:", error);
+    return res.status(500).json({ 
+      error: "Test failed", 
+      message: error.message 
     });
   }
 };
