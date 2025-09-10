@@ -66,6 +66,12 @@ const UserInfoDrawer = ({ open, onClose }) => {
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
 
+  // Actions menu & modals
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [showReportConfirm, setShowReportConfirm] = useState(false);
+  const [reportReason, setReportReason] = useState('spam');
+
   const isOnline = selectedChatData?._id && onlineUsers?.[selectedChatData._id];
   const lastSeen = selectedChatData?.lastSeen;
   const lastSeenText = lastSeen ? formatLastSeen(lastSeen) : '';
@@ -104,7 +110,6 @@ const UserInfoDrawer = ({ open, onClose }) => {
         toast.error(response.data?.error || 'Failed to load user details');
       }
     } catch (error) {
-      // Provide more specific error messages
       if (error.response?.status === 404) {
         toast.error('User not found');
       } else if (error.response?.status === 401) {
@@ -154,7 +159,6 @@ const UserInfoDrawer = ({ open, onClose }) => {
         setMediaPage(page);
       }
     } catch (error) {
-      // Don't show error toast for shared media as it's not critical
       setSharedMedia({ images: [], files: [], links: [] });
     } finally {
       setMediaLoading(false);
@@ -181,7 +185,6 @@ const UserInfoDrawer = ({ open, onClose }) => {
         setMutualChannels([]);
       }
     } catch (error) {
-      // Don't show error toast for mutual channels as it's not critical
       setMutualChannels([]);
     } finally {
       setMutualLoading(false);
@@ -202,7 +205,6 @@ const UserInfoDrawer = ({ open, onClose }) => {
         setIsMuted(response.data.isMuted);
       }
     } catch (error) {
-      // Default to unmuted if there's an error
       setIsMuted(false);
     }
   }, [userInfo?.id]);
@@ -232,7 +234,6 @@ const UserInfoDrawer = ({ open, onClose }) => {
   useEffect(() => {
     if (!socket || !selectedChatData?._id) return;
 
-    // Listen for user profile updates
     const handleUserUpdate = (data) => {
       if (data.userId === selectedChatData._id) {
         setUserDetails(prev => ({ ...prev, ...data.updates }));
@@ -240,7 +241,6 @@ const UserInfoDrawer = ({ open, onClose }) => {
       }
     };
 
-    // Listen for online status changes
     const handleStatusChange = (data) => {
       if (data.userId === selectedChatData._id) {
         setUserDetails(prev => ({ 
@@ -251,17 +251,13 @@ const UserInfoDrawer = ({ open, onClose }) => {
       }
     };
 
-    // Listen for new shared media
     const handleNewMedia = (data) => {
       if (data.senderId === selectedChatData._id || data.receiverId === selectedChatData._id) {
-        // Refresh media list
         fetchSharedMedia(selectedChatData._id, 1);
       }
     };
 
-    // Listen for channel membership changes
     const handleChannelUpdate = (data) => {
-      // Refresh mutual channels if either user's membership changed
       if (data.members?.some(member => member.userId === selectedChatData._id || member.userId === userInfo?.id)) {
         fetchMutualChannels(selectedChatData._id);
       }
@@ -281,16 +277,24 @@ const UserInfoDrawer = ({ open, onClose }) => {
   }, [socket, selectedChatData?._id, userInfo?.id, displayName, fetchSharedMedia, fetchMutualChannels]);
 
   // Event handlers
+  const confirmBlockUser = () => {
+    setShowActionsMenu(false);
+    setShowBlockConfirm(true);
+  };
+  const confirmReportUser = () => {
+    setShowActionsMenu(false);
+    setShowReportConfirm(true);
+  };
+
   const handleBlockUser = async () => {
     if (!selectedChatData?._id) return;
     
     try {
-      const response = await apiClient.post(`/api/users/block`, {
-        targetUserId: selectedChatData._id
-      }, { withCredentials: true });
+      const response = await apiClient.post(`/api/users/${selectedChatData._id}/block`, {}, { withCredentials: true });
       
       if (response.data?.success) {
         toast.success('User blocked successfully');
+        setShowBlockConfirm(false);
         onClose();
       } else {
         toast.error(response.data?.error || 'Failed to block user');
@@ -305,13 +309,13 @@ const UserInfoDrawer = ({ open, onClose }) => {
     if (!selectedChatData?._id) return;
     
     try {
-      const response = await apiClient.post(`/api/users/report`, {
-        targetUserId: selectedChatData._id,
-        reason: 'User reported'
+      const response = await apiClient.post(`/api/users/${selectedChatData._id}/report`, {
+        reason: reportReason
       }, { withCredentials: true });
       
       if (response.data?.success) {
         toast.success('User reported successfully');
+        setShowReportConfirm(false);
       } else {
         toast.error(response.data?.error || 'Failed to report user');
       }
@@ -351,32 +355,46 @@ const UserInfoDrawer = ({ open, onClose }) => {
 
   const handleMediaPreview = async (item) => {
     try {
-      if (item.url) {
-        // For images, open in new tab
-        if (item.type === 'image') {
-          window.open(item.url, '_blank');
-        } else {
-          // For files, trigger download
-          const response = await apiClient.get(`/api/files/download/${item.id}`, {
-            responseType: 'blob',
-            withCredentials: true
-          });
-          
-          const url = window.URL.createObjectURL(response.data);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = item.name;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-          
-          toast.success(`Downloading ${item.name}...`);
-        }
+      if (!item.url) return;
+      const lower = item.name?.toLowerCase() || '';
+      const url = item.url;
+      const isImage = item.type === 'image';
+      const isVideo = item.type === 'video';
+      const isPdf = lower.endsWith('.pdf');
+      const isTxt = lower.endsWith('.txt');
+
+      if (isImage) {
+        window.open(url, '_blank');
+        return;
       }
+      if (isVideo) {
+        window.open(url, '_blank');
+        return;
+      }
+      if (isPdf || isTxt) {
+        window.open(url, '_blank');
+        return;
+      }
+
+      // Download for other file types via PRD endpoint
+      const response = await apiClient.get(`/api/media/${item.id}/download`, {
+        responseType: 'blob',
+        withCredentials: true
+      });
+      const blobUrl = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = item.name || `File-${item.id}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      toast.success(`Downloading ${item.name || `File-${item.id}`}...`);
     } catch (error) {
       console.error('Error downloading file:', error);
-      toast.error('Failed to download file');
+      const status = error?.response?.status;
+      if (status === 404) toast.error('⚠️ File not found. It may have been deleted.');
+      else toast.error('Failed to download file');
     }
   };
 
@@ -400,8 +418,8 @@ const UserInfoDrawer = ({ open, onClose }) => {
   useEffect(() => {
     const checkScreenSize = () => {
       const width = window.innerWidth;
-      setIsMobile(width < 768); // Updated to standard mobile breakpoint
-      setIsTablet(width >= 768 && width < 1024); // Updated tablet range
+      setIsMobile(width < 768);
+      setIsTablet(width >= 768 && width < 1024);
     };
 
     checkScreenSize();
@@ -447,7 +465,6 @@ const UserInfoDrawer = ({ open, onClose }) => {
       const index = allVideos.findIndex(vid => vid.id === item.id);
       openMediaPreview(allVideos, index, 'video');
     } else {
-      // For files, trigger download
       handleMediaPreview(item);
     }
   };
@@ -483,34 +500,21 @@ const UserInfoDrawer = ({ open, onClose }) => {
   // Enhanced channel navigation with proper routing
   const handleChannelNavigation = async (channel) => {
     try {
-      // Check if user has access to the channel
-      const response = await apiClient.get(`/api/channels/${channel.id || channel._id}/access`, {
-        withCredentials: true
-      });
-
-      if (response.data?.success) {
-        // Set the channel data and type
-        setSelectedChatData(channel);
+      const id = channel.id || channel._id;
+      // PRD: fetch channel details
+      const response = await apiClient.get(`/api/channels/${id}`, { withCredentials: true });
+      if (response?.data?.channelId) {
+        setSelectedChatData({ ...channel, _id: id });
         setSelectedChatType('channel');
-        
-        // Navigate to the channel using React Router
-        navigate(`/chat/${channel.id || channel._id}`);
-        
-        // Close the drawer
+        navigate(`/chat/${id}`);
         onClose();
-        
         toast.success(`Switched to ${channel.name}`);
       } else {
-        toast.error("You don't have access to this channel");
+        toast.error('⚠️ Channel no longer exists.');
       }
     } catch (error) {
-      if (error.response?.status === 403) {
-        toast.error("You don't have access to this channel");
-      } else if (error.response?.status === 404) {
-        toast.error("Channel not found");
-      } else {
-        toast.error("Failed to access channel. Please try again.");
-      }
+      if (error.response?.status === 404) toast.error('⚠️ Channel no longer exists.');
+      else toast.error('Failed to access channel. Please try again.');
     }
   };
 
@@ -573,13 +577,33 @@ const UserInfoDrawer = ({ open, onClose }) => {
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-[#2f303b]">
         <h2 id="user-info-title" className="text-xl font-semibold text-white">User Info</h2>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-white transition-colors duration-200 p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-          aria-label="Close user info panel"
-        >
-          <X className="w-6 h-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Mobile actions menu trigger */}
+          {isMobile && (
+            <div className="relative">
+              <button
+                onClick={() => setShowActionsMenu(v => !v)}
+                className="text-gray-400 hover:text-white transition-colors duration-200 p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                aria-label="More actions"
+              >
+                <MoreHorizontal className="w-6 h-6" />
+              </button>
+              {showActionsMenu && (
+                <div className="absolute right-0 mt-2 w-44 bg-[#1a1b23] border border-[#2f303b] rounded-md shadow-lg z-50">
+                  <button className="w-full text-left px-3 py-2 text-sm text-white hover:bg-[#25262e]" onClick={confirmBlockUser}>Block User</button>
+                  <button className="w-full text-left px-3 py-2 text-sm text-white hover:bg-[#25262e]" onClick={confirmReportUser}>Report User</button>
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors duration-200 p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+            aria-label="Close user info panel"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -712,9 +736,12 @@ const UserInfoDrawer = ({ open, onClose }) => {
                       {isMuted ? 'Muted' : 'Notifications'}
                     </span>
                   </div>
-                  <button className="text-gray-400 hover:text-white">
-                    <MoreHorizontal className="w-4 h-4" />
-                  </button>
+                  {/* Desktop inline more button (placeholder for future) */}
+                  {!isMobile && (
+                    <button className="text-gray-400 hover:text-white">
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
 
                 {/* User Details */}
@@ -754,10 +781,10 @@ const UserInfoDrawer = ({ open, onClose }) => {
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="space-y-3">
+                  {/* Actions - desktop only */}
+                  <div className="space-y-3 hidden md:block">
                     <button
-                      onClick={handleBlockUser}
+                      onClick={() => setShowBlockConfirm(true)}
                       className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -767,7 +794,7 @@ const UserInfoDrawer = ({ open, onClose }) => {
                     </button>
                     
                     <button
-                      onClick={handleReportUser}
+                      onClick={() => setShowReportConfirm(true)}
                       className="w-full bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -957,11 +984,13 @@ const UserInfoDrawer = ({ open, onClose }) => {
                                 {file.type === 'video' ? (
                                   <Play className="w-5 h-5 text-gray-400" />
                                 ) : (
-                                  <FileText className="w-5 h-5 text-gray-400" />
+                                  getFileIcon(file.name, file.type)
                                 )}
                                 <div>
-                                  <p className="text-white text-sm">{file.name}</p>
-                                  <p className="text-gray-400 text-xs">{file.size} • {file.date}</p>
+                                  <p className="text-white text-sm">{file.name || `File-${file.id}`}</p>
+                                  {file.size || file.date ? (
+                                    <p className="text-gray-400 text-xs">{[file.size, file.date].filter(Boolean).join(' • ')}</p>
+                                  ) : null}
                                 </div>
                               </div>
                               <div className="text-gray-400 hover:text-white">
@@ -1165,6 +1194,45 @@ const UserInfoDrawer = ({ open, onClose }) => {
                 {mediaPreview.currentIndex + 1} of {mediaPreview.media.length}
               </p>
             )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Block Confirm Modal */}
+    {showBlockConfirm && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
+        <div className="bg-[#1a1b23] border border-[#2f303b] rounded-lg p-5 w-full max-w-sm">
+          <h4 className="text-white font-semibold mb-2">Block User</h4>
+          <p className="text-gray-300 text-sm mb-4">Are you sure you want to block this user?</p>
+          <div className="flex justify-end gap-2">
+            <button className="px-3 py-1.5 rounded-md bg-gray-600 text-white hover:bg-gray-500" onClick={() => setShowBlockConfirm(false)}>Cancel</button>
+            <button className="px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700" onClick={handleBlockUser}>Block</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Report Confirm Modal */}
+    {showReportConfirm && (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
+        <div className="bg-[#1a1b23] border border-[#2f303b] rounded-lg p-5 w-full max-w-sm">
+          <h4 className="text-white font-semibold mb-2">Report User</h4>
+          <div className="mb-4">
+            <label className="block text-gray-300 text-sm mb-1">Please select a reason</label>
+            <select
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full bg-[#11121a] border border-[#2f303b] text-white text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="spam">Spam</option>
+              <option value="harassment">Harassment</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button className="px-3 py-1.5 rounded-md bg-gray-600 text-white hover:bg-gray-500" onClick={() => setShowReportConfirm(false)}>Cancel</button>
+            <button className="px-3 py-1.5 rounded-md bg-purple-600 text-white hover:bg-purple-700" onClick={handleReportUser}>Submit</button>
           </div>
         </div>
       </div>

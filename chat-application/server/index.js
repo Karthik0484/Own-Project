@@ -13,6 +13,9 @@ import channelRoutes from "./routes/ChannelRoutes.js";
 import Channel from "./models/ChannelModel.js";
 import pushRoutes from "./routes/push.routes.js";
 import userRoutes from "./routes/UserRoutes.js";
+import Message from "./models/MessagesModel.js";
+import { verifyToken } from "./middlewares/AuthMiddleware.js";
+import fs from "fs";
 
 dotenv.config();
 
@@ -71,6 +74,7 @@ app.get("/channels/:channelId/picture", async (req, res) => {
   }
 });
 
+// Top-level health
 app.get("/",(req,res) => {
     res.json("Hello")
 })
@@ -78,12 +82,55 @@ app.get("/",(req,res) => {
 app.use(cookieParser());
 app.use(express.json());
 
+// API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/contacts", contactsRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/channel", channelRoutes)
 app.use("/api/push", pushRoutes)
 app.use("/api/users", userRoutes)
+
+// PRD: File download endpoint - GET /api/media/:fileId/download
+app.get("/api/media/:fileId/download", verifyToken, async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const msg = await Message.findById(fileId).select("fileUrl");
+    if (!msg || !msg.fileUrl) {
+      return res.status(404).json({ success: false, error: "File not found" });
+    }
+    // fileUrl is like "files/<date>/<originalname>"
+    const abs = path.join(__dirname, "uploads", msg.fileUrl);
+    if (!fs.existsSync(abs)) {
+      return res.status(404).json({ success: false, error: "File not found" });
+    }
+    res.type(abs);
+    res.setHeader("Content-Disposition", `attachment; filename="${path.basename(abs)}"`);
+    return fs.createReadStream(abs).pipe(res);
+  } catch (e) {
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// PRD: Channel details endpoint - GET /api/channels/:id
+app.get("/api/channels/:id", verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ch = await Channel.findById(id).populate("members", "firstName lastName image email");
+    if (!ch) {
+      return res.status(404).json({ error: "Channel not found or deleted." });
+    }
+    return res.json({
+      channelId: ch._id,
+      name: ch.name,
+      status: "active",
+      members: ch.members || [],
+      description: ch.description || "",
+      profilePicture: ch.profilePicture || null,
+    });
+  } catch (e) {
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 const server = app.listen(port, () => {
     console.log(`Server is running on port ${port}`);

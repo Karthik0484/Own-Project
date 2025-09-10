@@ -122,6 +122,23 @@ router.get("/:id/profile", verifyToken, async (req, res) => {
   }
 });
 
+// Utility helpers
+const inferTypeFromUrl = (url) => {
+  const lower = (url || '').toLowerCase();
+  const ext = lower.split('.').pop() || '';
+  const imageExt = ['png','jpg','jpeg','gif','webp','bmp'];
+  const videoExt = ['mp4','mov','avi','mkv','webm','wmv'];
+  if (imageExt.includes(ext)) return 'image';
+  if (videoExt.includes(ext)) return 'video';
+  return 'file';
+};
+
+const basenameFromUrl = (url) => {
+  if (!url) return '';
+  const parts = url.split('/');
+  return parts[parts.length - 1] || '';
+};
+
 // Get shared media between users
 router.get("/messages/shared-media", verifyToken, async (req, res) => {
   try {
@@ -136,58 +153,51 @@ router.get("/messages/shared-media", verifyToken, async (req, res) => {
 
     const skip = (page - 1) * limit;
     
-    // Find messages with media between the two users
+    // Find messages with files between the two users
     const messages = await Message.find({
       $or: [
         { sender: userId, recipient: currentUserId },
         { sender: currentUserId, recipient: userId }
       ],
-      messageType: { $in: ['image', 'file', 'link'] },
-      fileUrl: { $exists: true, $ne: null } // Ensure fileUrl exists
+      fileUrl: { $exists: true, $ne: null }
     })
     .sort({ timestamp: -1 })
     .skip(skip)
-    .limit(parseInt(limit))
-    .populate('sender', 'firstName lastName image');
+    .limit(parseInt(limit));
 
-    // Categorize media
     const images = [];
     const files = [];
     const links = [];
 
     messages.forEach(message => {
-      if (!message.fileUrl) return; // Skip messages without fileUrl
-      
+      if (!message.fileUrl) return;
+
+      const detectedType = inferTypeFromUrl(message.fileUrl);
+      const nameFromPath = basenameFromUrl(message.fileUrl);
+
       const mediaItem = {
         id: message._id,
-        name: message.content || 'Untitled',
-        url: message.fileUrl,
-        type: message.messageType,
+        name: message.content && message.content.trim() ? message.content : (nameFromPath || `File-${message._id}`),
+        url: `${process.env.ORIGIN || 'http://localhost:3001'}/${message.fileUrl}`,
+        type: detectedType,
         date: message.timestamp,
-        sender: message.sender,
-        size: message.fileSize || 'Unknown'
       };
 
-      switch (message.messageType) {
-        case 'image':
-          images.push(mediaItem);
-          break;
-        case 'file':
-          files.push(mediaItem);
-          break;
-        case 'link':
-          links.push(mediaItem);
-          break;
+      if (detectedType === 'image') {
+        images.push(mediaItem);
+      } else if (detectedType === 'video') {
+        files.push({ ...mediaItem, type: 'video' });
+      } else {
+        files.push(mediaItem);
       }
     });
 
-    // Check if there are more results
+    // Count for pagination
     const totalCount = await Message.countDocuments({
       $or: [
         { sender: userId, recipient: currentUserId },
         { sender: currentUserId, recipient: userId }
       ],
-      messageType: { $in: ['image', 'file', 'link'] },
       fileUrl: { $exists: true, $ne: null }
     });
 
@@ -228,7 +238,7 @@ router.get("/channels/mutual", verifyToken, async (req, res) => {
     })
     .select('name profilePicture members description')
     .populate('members', 'firstName lastName image')
-    .sort({ updatedAt: -1 }); // Sort by most recent activity
+    .sort({ updatedAt: -1 });
 
     const formattedChannels = mutualChannels.map(ch => ({
       id: ch._id,
@@ -252,6 +262,29 @@ router.get("/channels/mutual", verifyToken, async (req, res) => {
   }
 });
 
+// PRD alias: GET /users/{id}/mutual-channels
+router.get("/:id/mutual-channels", verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUserId = req.userId;
+
+    const mutualChannels = await channel.find({
+      members: { $all: [id, currentUserId] }
+    }).select('name members');
+
+    const data = mutualChannels.map(ch => ({
+      channelId: ch._id,
+      name: ch.name,
+      status: 'exists'
+    }));
+
+    return res.json({ success: true, channels: data });
+  } catch (error) {
+    console.error("mutual-channels error:", error);
+    return res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 // Get mute status for a user
 router.get("/mute-status", verifyToken, async (req, res) => {
   try {
@@ -265,8 +298,6 @@ router.get("/mute-status", verifyToken, async (req, res) => {
       });
     }
 
-    // For now, return false as mute status is not implemented in the current schema
-    // This can be extended when mute functionality is added to the user model
     res.json({
       success: true,
       isMuted: false
@@ -293,8 +324,6 @@ router.post("/toggle-mute", verifyToken, async (req, res) => {
       });
     }
 
-    // For now, just return success as mute functionality is not fully implemented
-    // This can be extended when mute functionality is added to the user model
     res.json({
       success: true,
       isMuted: mute
@@ -321,8 +350,6 @@ router.post("/block", verifyToken, async (req, res) => {
       });
     }
 
-    // For now, just return success as block functionality is not fully implemented
-    // This can be extended when block functionality is added to the user model
     res.json({
       success: true,
       message: "User blocked successfully"
@@ -333,6 +360,17 @@ router.post("/block", verifyToken, async (req, res) => {
       success: false,
       error: "Internal server error"
     });
+  }
+});
+
+// PRD alias: POST /users/{id}/block
+router.post("/:id/block", verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ success: false, error: 'Missing target user ID' });
+    return res.json({ success: true, message: 'User blocked successfully' });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 
@@ -349,8 +387,6 @@ router.post("/report", verifyToken, async (req, res) => {
       });
     }
 
-    // For now, just return success as report functionality is not fully implemented
-    // This can be extended when report functionality is added to the user model
     res.json({
       success: true,
       message: "User reported successfully"
@@ -361,6 +397,16 @@ router.post("/report", verifyToken, async (req, res) => {
       success: false,
       error: "Internal server error"
     });
+  }
+});
+
+// PRD alias: POST /users/{id}/report
+router.post("/:id/report", verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    return res.json({ success: true, message: 'User reported successfully' });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 

@@ -35,6 +35,55 @@ channelRoutes.put("/channels/:channelId/description", verifyToken, updateChannel
 // And base-style path: /api/channel/:channelId/description
 channelRoutes.patch("/:channelId/description", verifyToken, updateChannelDescription);
 channelRoutes.put("/:channelId/description", verifyToken, updateChannelDescription);
+
+// Access check endpoint
+channelRoutes.get("/:channelId/access", verifyToken, async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const userId = req.userId;
+    const ch = await Channel.findById(channelId).select('members');
+    if (!ch) return res.status(404).json({ success: false, error: 'Channel not found' });
+    const hasAccess = ch.members.some(m => m.toString() === userId);
+    if (!hasAccess) return res.status(403).json({ success: false, error: 'Forbidden' });
+    return res.json({ success: true });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+// Alias path per some clients: /channels/:channelId/access
+channelRoutes.get("/channels/:channelId/access", verifyToken, async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const userId = req.userId;
+    const ch = await Channel.findById(channelId).select('members');
+    if (!ch) return res.status(404).json({ success: false, error: 'Channel not found' });
+    const hasAccess = ch.members.some(m => m.toString() === userId);
+    if (!hasAccess) return res.status(403).json({ success: false, error: 'Forbidden' });
+    return res.json({ success: true });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Compatibility: GET /api/channel/:channelId returns channel details
+channelRoutes.get("/:channelId", verifyToken, async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const ch = await Channel.findById(channelId).populate('members', 'firstName lastName image email');
+    if (!ch) return res.status(404).json({ error: 'Channel not found or deleted.' });
+    return res.json({
+      channelId: ch._id,
+      name: ch.name,
+      status: 'active',
+      members: ch.members || [],
+      description: ch.description || '',
+      profilePicture: ch.profilePicture || null,
+    });
+  } catch (e) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 channelRoutes.get('/', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
