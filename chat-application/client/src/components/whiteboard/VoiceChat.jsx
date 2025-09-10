@@ -10,155 +10,204 @@ const VoiceChat = ({ chatId, isEnabled, onToggle }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [voiceParticipants, setVoiceParticipants] = useState([]);
   const [localStream, setLocalStream] = useState(null);
-  const [peerConnections, setPeerConnections] = useState({});
-  const audioRefs = useRef({});
+  const [peerConnections, setPeerConnections] = useState({}); // key: socketId
+  const audioRefs = useRef({}); // key: socketId -> HTMLAudioElement
 
+  // Cleanup listeners when toggling
   useEffect(() => {
     if (!isEnabled || !socket) return;
 
-    // Listen for voice events
-    socket.on('whiteboard:voice_join', handleVoiceJoin);
-    socket.on('whiteboard:voice_leave', handleVoiceLeave);
-    socket.on('whiteboard:voice_signal', handleVoiceSignal);
-    socket.on('whiteboard:voice_speaking', handleVoiceSpeaking);
+    const onUserJoined = (data) => {
+      const { participant, allParticipants } = data;
+      setVoiceParticipants(allParticipants.map(p => ({
+        userId: p.userId,
+        name: p.userInfo?.name || 'Unknown',
+        socketId: p.socketId,
+        isSpeaking: false,
+      })));
+
+      // Prepare peer connections to everyone except ourselves
+      if (localStream) {
+        allParticipants.forEach(async (p) => {
+          if (p.socketId === socket.id) return;
+          await ensurePeerConnection(p.socketId, localStream, true);
+        });
+      }
+
+      if (participant && participant.userId !== userInfo.id) {
+        toast.info(`🔊 ${participant.userInfo?.name || 'User'} joined voice`);
+      }
+    };
+
+    const onUserLeft = ({ socketId }) => {
+      setVoiceParticipants(prev => prev.filter(p => p.socketId !== socketId));
+      const pc = peerConnections[socketId];
+      if (pc) {
+        try { pc.close(); } catch {}
+        setPeerConnections(prev => {
+          const copy = { ...prev };
+          delete copy[socketId];
+          return copy;
+        });
+      }
+      const audio = audioRefs.current[socketId];
+      if (audio) {
+        audio.pause();
+        audio.srcObject = null;
+        delete audioRefs.current[socketId];
+      }
+    };
+
+    const onSignaling = async ({ fromSocketId, signal, type }) => {
+      try {
+        if (type === 'offer') {
+          // Create PC if needed, add local tracks, set remote desc, answer
+          const pc = await ensurePeerConnection(fromSocketId, localStream, false);
+          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit('whiteboard:voice_signal', {
+            sessionId: chatId,
+            targetSocketId: fromSocketId,
+            type: 'answer',
+            signal: { sdp: answer }
+          });
+        } else if (type === 'answer') {
+          const pc = peerConnections[fromSocketId];
+          if (pc && signal?.sdp) {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          }
+        } else if (type === 'ice-candidate') {
+          const pc = peerConnections[fromSocketId];
+          if (pc && signal?.candidate) {
+            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          }
+        }
+      } catch (err) {
+        console.error('Signaling error:', err);
+      }
+    };
+
+    const onSpeaking = ({ isSpeaking }) => {
+      // Basic feedback: mark everyone as speaking/not speaking (server lacks user id in payload)
+      setVoiceParticipants(prev => prev.map(p => ({ ...p, isSpeaking })));
+    };
+
+    socket.on('voice:user_joined', onUserJoined);
+    socket.on('voice:user_left', onUserLeft);
+    socket.on('voice:signaling', onSignaling);
+    socket.on('voice:speaking', onSpeaking);
 
     return () => {
-      socket.off('whiteboard:voice_join', handleVoiceJoin);
-      socket.off('whiteboard:voice_leave', handleVoiceLeave);
-      socket.off('whiteboard:voice_signal', handleVoiceSignal);
-      socket.off('whiteboard:voice_speaking', handleVoiceSpeaking);
+      socket.off('voice:user_joined', onUserJoined);
+      socket.off('voice:user_left', onUserLeft);
+      socket.off('voice:signaling', onSignaling);
+      socket.off('voice:speaking', onSpeaking);
     };
-  }, [isEnabled, socket]);
+  }, [isEnabled, socket, localStream, peerConnections, chatId, userInfo.id]);
 
-  const handleVoiceJoin = (data) => {
-    setVoiceParticipants(prev => [...prev, data.user]);
-    toast.info(`🔊 ${data.user.name} joined voice chat`);
-  };
+  const ensurePeerConnection = async (remoteSocketId, stream, isInitiator) => {
+    let pc = peerConnections[remoteSocketId];
+    if (pc) return pc;
 
-  const handleVoiceLeave = (data) => {
-    setVoiceParticipants(prev => prev.filter(p => p.userId !== data.userId));
-    toast.info(`🔇 ${data.userName} left voice chat`);
-    
-    // Close peer connection
-    if (peerConnections[data.userId]) {
-      peerConnections[data.userId].close();
-      setPeerConnections(prev => {
-        const newConnections = { ...prev };
-        delete newConnections[data.userId];
-        return newConnections;
-      });
-    }
-  };
+    pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
 
-  const handleVoiceSignal = async (data) => {
-    if (data.userId === userInfo.id) return;
-
-    try {
-      let pc = peerConnections[data.userId];
-      if (!pc) {
-        pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
-        setPeerConnections(prev => ({ ...prev, [data.userId]: pc }));
-
-        pc.ontrack = (event) => {
-          const audio = document.createElement('audio');
-          audio.srcObject = event.streams[0];
-          audio.autoplay = true;
-          audioRefs.current[data.userId] = audio;
-        };
-
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            socket.emit('whiteboard:voice_signal', {
-              chatId,
-              userId: userInfo.id,
-              targetUserId: data.userId,
-              signal: { type: 'ice-candidate', candidate: event.candidate }
-            });
-          }
-        };
+    // Add tracks
+    if (stream) {
+      try {
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      } catch (e) {
+        console.warn('Failed adding tracks:', e);
       }
+    }
 
-      if (data.signal.type === 'offer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(data.signal));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        
+    pc.ontrack = (event) => {
+      let audio = audioRefs.current[remoteSocketId];
+      if (!audio) {
+        audio = document.createElement('audio');
+        audio.autoplay = true;
+        audioRefs.current[remoteSocketId] = audio;
+        document.body.appendChild(audio);
+      }
+      audio.srcObject = event.streams[0];
+    };
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
         socket.emit('whiteboard:voice_signal', {
-          chatId,
-          userId: userInfo.id,
-          targetUserId: data.userId,
-          signal: { type: 'answer', sdp: answer }
+          sessionId: chatId,
+          targetSocketId: remoteSocketId,
+          type: 'ice-candidate',
+          signal: { candidate: event.candidate }
         });
-      } else if (data.signal.type === 'answer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(data.signal));
-      } else if (data.signal.type === 'ice-candidate') {
-        await pc.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
       }
-    } catch (error) {
-      console.error('Voice signaling error:', error);
-    }
-  };
+    };
 
-  const handleVoiceSpeaking = (data) => {
-    setVoiceParticipants(prev => 
-      prev.map(p => 
-        p.userId === data.userId 
-          ? { ...p, isSpeaking: data.isSpeaking }
-          : p
-      )
-    );
+    pc.onconnectionstatechange = () => {
+      const state = pc.connectionState;
+      if (state === 'failed' || state === 'disconnected') {
+        // try simple retry once for initiator
+        if (isInitiator) {
+          setTimeout(async () => {
+            try {
+              const offer = await pc.createOffer({ offerToReceiveAudio: true });
+              await pc.setLocalDescription(offer);
+              socket.emit('whiteboard:voice_signal', {
+                sessionId: chatId,
+                targetSocketId: remoteSocketId,
+                type: 'offer',
+                signal: { sdp: offer }
+              });
+            } catch {}
+          }, 500);
+        }
+      }
+    };
+
+    setPeerConnections(prev => ({ ...prev, [remoteSocketId]: pc }));
+
+    // If we're initiating, create offer
+    if (isInitiator) {
+      try {
+        const offer = await pc.createOffer({ offerToReceiveAudio: true });
+        await pc.setLocalDescription(offer);
+        socket.emit('whiteboard:voice_signal', {
+          sessionId: chatId,
+          targetSocketId: remoteSocketId,
+          type: 'offer',
+          signal: { sdp: offer }
+        });
+      } catch (e) {
+        console.error('Offer error:', e);
+      }
+    }
+
+    return pc;
   };
 
   const enableVoice = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setLocalStream(stream);
-      
+
+      // Join voice session using chatId as sessionId
       socket.emit('whiteboard:voice_join', {
-        chatId,
+        sessionId: chatId,
         userId: userInfo.id,
-        userName: `${userInfo.firstName} ${userInfo.lastName}`
-      });
-
-      // Create peer connections for existing participants
-      voiceParticipants.forEach(async (participant) => {
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
-        
-        stream.getTracks().forEach(track => pc.addTrack(track, stream));
-        
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            socket.emit('whiteboard:voice_signal', {
-              chatId,
-              userId: userInfo.id,
-              targetUserId: participant.userId,
-              signal: { type: 'ice-candidate', candidate: event.candidate }
-            });
-          }
-        };
-
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        
-        socket.emit('whiteboard:voice_signal', {
-          chatId,
-          userId: userInfo.id,
-          targetUserId: participant.userId,
-          signal: { type: 'offer', sdp: offer }
-        });
-
-        setPeerConnections(prev => ({ ...prev, [participant.userId]: pc }));
+        userInfo: { name: `${userInfo.firstName || ''} ${userInfo.lastName || ''}`.trim() }
       });
 
       onToggle(true);
       toast.success('🔊 Voice chat enabled');
     } catch (error) {
+      if (error && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) {
+        toast.error('Microphone access denied');
+      } else {
+        toast.error('❌ Failed to enable voice chat');
+      }
       console.error('Error enabling voice:', error);
-      toast.error('❌ Failed to enable voice chat');
     }
   };
 
@@ -167,21 +216,24 @@ const VoiceChat = ({ chatId, isEnabled, onToggle }) => {
       localStream.getTracks().forEach(track => track.stop());
       setLocalStream(null);
     }
-    
-    Object.values(peerConnections).forEach(pc => pc.close());
+
+    Object.values(peerConnections).forEach(pc => {
+      try { pc.close(); } catch {}
+    });
     setPeerConnections({});
-    
+
     // Stop all audio elements
     Object.values(audioRefs.current).forEach(audio => {
       if (audio) {
         audio.pause();
         audio.srcObject = null;
+        if (audio.parentNode === document.body) document.body.removeChild(audio);
       }
     });
     audioRefs.current = {};
-    
+
     socket.emit('whiteboard:voice_leave', {
-      chatId,
+      sessionId: chatId,
       userId: userInfo.id
     });
 
@@ -195,12 +247,8 @@ const VoiceChat = ({ chatId, isEnabled, onToggle }) => {
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setIsMuted(!audioTrack.enabled);
-        
-        socket.emit('whiteboard:voice_speaking', {
-          chatId,
-          userId: userInfo.id,
-          isSpeaking: audioTrack.enabled
-        });
+        socket.emit('voice:mute', { sessionId: chatId, userId: userInfo.id, isMuted: !audioTrack.enabled });
+        socket.emit('whiteboard:voice_speaking', { sessionId: chatId, userId: userInfo.id, isSpeaking: audioTrack.enabled });
       }
     }
   };
@@ -246,28 +294,18 @@ const VoiceChat = ({ chatId, isEnabled, onToggle }) => {
           Disable voice
         </span>
       </button>
-      
-      {/* Voice participants - Only show on desktop */}
+      {/* Participants (desktop) */}
       {voiceParticipants.length > 0 && (
         <div className="hidden lg:block bg-gray-200 dark:bg-gray-700 rounded-lg p-2 mt-2">
           <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Voice Participants</h4>
           <div className="space-y-1 max-h-20 overflow-y-auto">
-            {voiceParticipants.map((participant) => (
-              <div
-                key={participant.userId}
-                className={`flex items-center gap-1 p-1 rounded text-xs ${
-                  participant.isSpeaking 
-                    ? 'bg-green-100 dark:bg-green-900' 
-                    : 'bg-white dark:bg-gray-600'
-                }`}
-              >
+            {voiceParticipants.map((p) => (
+              <div key={p.socketId} className={`flex items-center gap-1 p-1 rounded text-xs ${p.isSpeaking ? 'bg-green-100 dark:bg-green-900' : 'bg-white dark:bg-gray-600'}`}>
                 <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0">
-                  {participant.name.charAt(0)}
+                  {p.name?.charAt(0) || 'U'}
                 </div>
-                <span className="flex-1 truncate text-gray-700 dark:text-gray-300">{participant.name}</span>
-                {participant.isSpeaking && (
-                  <Volume2 className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />
-                )}
+                <span className="flex-1 truncate text-gray-700 dark:text-gray-300">{p.name || p.userId}</span>
+                {p.isSpeaking && <Volume2 className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />}
               </div>
             ))}
           </div>
