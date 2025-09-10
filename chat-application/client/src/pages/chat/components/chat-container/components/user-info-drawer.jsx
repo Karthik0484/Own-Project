@@ -132,31 +132,21 @@ const UserInfoDrawer = ({ open, onClose }) => {
     
     try {
       setMediaLoading(true);
-      const response = await apiClient.get(`/api/users/messages/shared-media`, {
-        params: {
-          userId,
-          currentUserId: userInfo.id,
-          page,
-          limit: 10
-        },
+      // Prefer unified media endpoint for richer metadata
+      const response = await apiClient.get(`/api/users/${userId}/media`, {
         withCredentials: true
       });
       
       if (response.data?.success) {
-        const { images, files, links, hasMore } = response.data;
-        
-        if (page === 1) {
-          setSharedMedia({ images, files, links });
-        } else {
-          setSharedMedia(prev => ({
-            images: [...prev.images, ...images],
-            files: [...prev.files, ...files],
-            links: [...prev.links, ...links]
-          }));
-        }
-        
-        setHasMoreMedia(hasMore);
-        setMediaPage(page);
+        const all = response.data.media || [];
+        const images = all.filter(m => m.type === 'image');
+        const videos = all.filter(m => m.type === 'video');
+        const files = all.filter(m => m.type !== 'image' && m.type !== 'video');
+        setSharedMedia({ images, files: [...videos, ...files], links: [] });
+        setHasMoreMedia(false);
+        setMediaPage(1);
+      } else {
+        setSharedMedia({ images: [], files: [], links: [] });
       }
     } catch (error) {
       setSharedMedia({ images: [], files: [], links: [] });
@@ -917,39 +907,26 @@ const UserInfoDrawer = ({ open, onClose }) => {
                   </div>
                 ) : (
                   <>
-                    {/* Images Section */}
+                    {/* Images Grid */}
                     {sharedMedia.images.length > 0 && (
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <h4 className="text-sm font-medium text-gray-400 flex items-center gap-2">
                           <Image className="w-4 h-4" />
                           Images ({sharedMedia.images.length})
                         </h4>
                         <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : isTablet ? 'grid-cols-3' : 'grid-cols-4'}`}>
-                          {sharedMedia.images.map((image) => (
-                            <div 
-                              key={image.id} 
-                              className="relative group cursor-pointer"
-                              onClick={() => handleMediaClick(image, 'image')}
-                              role="button"
-                              tabIndex={0}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  handleMediaClick(image, 'image');
-                                }
-                              }}
-                              aria-label={`View image ${image.name}`}
-                            >
-                              <img 
-                                src={image.url} 
-                                alt={image.name}
-                                className="w-full h-24 object-cover rounded-lg"
+                          {sharedMedia.images.map((img) => (
+                            <div key={img.id} className="group relative rounded-lg overflow-hidden bg-[#1a1b23]">
+                              <img
+                                src={img.thumbnailUrl || img.url}
+                                alt={img.name}
+                                className="w-full h-32 object-cover"
                                 loading="lazy"
+                                onClick={() => handleMediaClick(img, 'image')}
+                                onError={(e) => { e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22><rect width=%22200%22 height=%22150%22 fill=%22%2325252e%22/><text x=%2250%22 y=%2275%22 fill=%22%23aaa%22>Image</text></svg>'; }}
                               />
-                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center">
-                                <div className="opacity-0 group-hover:opacity-100 bg-white bg-opacity-20 p-2 rounded-full">
-                                  <Eye className="w-4 h-4 text-white" />
-                                </div>
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end">
+                                <div className="w-full p-2 text-xs text-white truncate">{img.name}</div>
                               </div>
                             </div>
                           ))}
@@ -957,99 +934,67 @@ const UserInfoDrawer = ({ open, onClose }) => {
                       </div>
                     )}
 
-                    {/* Files Section */}
+                    {/* Videos and Other Files */}
                     {sharedMedia.files.length > 0 && (
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <h4 className="text-sm font-medium text-gray-400 flex items-center gap-2">
                           <FileText className="w-4 h-4" />
-                          Files ({sharedMedia.files.length})
+                          Files & Videos ({sharedMedia.files.length})
                         </h4>
                         <div className="space-y-2">
                           {sharedMedia.files.map((file) => (
-                            <div 
-                              key={file.id} 
-                              className="flex items-center justify-between bg-[#1a1b23] p-3 rounded-lg hover:bg-[#25262e] transition-colors cursor-pointer"
-                              onClick={() => handleMediaClick(file, file.type === 'video' ? 'video' : 'file')}
-                              role="button"
-                              tabIndex={0}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  handleMediaClick(file, file.type === 'video' ? 'video' : 'file');
-                                }
-                              }}
-                              aria-label={`${file.type === 'video' ? 'Play' : 'Download'} ${file.name}`}
-                            >
-                              <div className="flex items-center gap-3">
-                                {file.type === 'video' ? (
-                                  <Play className="w-5 h-5 text-gray-400" />
-                                ) : (
-                                  getFileIcon(file.name, file.type)
-                                )}
-                                <div>
-                                  <p className="text-white text-sm">{file.name || `File-${file.id}`}</p>
-                                  {file.size || file.date ? (
-                                    <p className="text-gray-400 text-xs">{[file.size, file.date].filter(Boolean).join(' • ')}</p>
-                                  ) : null}
+                            <div key={file.id} className="bg-[#1a1b23] p-3 rounded-lg">
+                              {file.type === 'video' ? (
+                                <div className="space-y-2">
+                                  <div className="rounded-md overflow-hidden bg-black">
+                                    <video
+                                      src={file.url}
+                                      controls
+                                      className="w-full h-48 object-contain"
+                                      preload="metadata"
+                                      onError={(e) => { e.currentTarget.controls = false; }}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <div className="min-w-0">
+                                      <p className="text-white text-sm truncate">{file.name || `Video-${file.id}`}</p>
+                                      <p className="text-gray-400 text-xs truncate">{[file.size, formatJoinDate(file.uploadedAt)].filter(Boolean).join(' • ')}</p>
+                                    </div>
+                                    <button
+                                      className="text-gray-300 hover:text-white"
+                                      onClick={() => handleMediaPreview(file)}
+                                      title="Download"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="text-gray-400 hover:text-white">
-                                {file.type === 'video' ? (
-                                  <Play className="w-4 h-4" />
-                                ) : (
-                                  <Download className="w-4 h-4" />
-                                )}
-                              </div>
+                              ) : (
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    {getFileIcon(file.name, file.type)}
+                                    <div className="min-w-0">
+                                      <p className="text-white text-sm truncate">{file.name || `File-${file.id}`}</p>
+                                      <p className="text-gray-400 text-xs truncate">{[file.size, formatJoinDate(file.uploadedAt)].filter(Boolean).join(' • ')}</p>
+                                    </div>
+                                  </div>
+                                  <button
+                                    className="text-gray-300 hover:text-white"
+                                    onClick={() => handleMediaPreview(file)}
+                                    title="Download"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
                       </div>
-                    )}
-
-                    {/* Links Section */}
-                    {sharedMedia.links.length > 0 && (
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-medium text-gray-400 flex items-center gap-2">
-                          <Link className="w-4 h-4" />
-                          Links ({sharedMedia.links.length})
-                        </h4>
-                        <div className="space-y-2">
-                          {sharedMedia.links.map((link) => (
-                            <div key={link.id} className="bg-[#1a1b23] p-3 rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <Link className="w-5 h-5 text-gray-400" />
-                                <div className="flex-1">
-                                  <p className="text-white text-sm">{link.title}</p>
-                                  <p className="text-gray-400 text-xs">{link.url}</p>
-                                  <p className="text-gray-500 text-xs">{link.date}</p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Load More Button */}
-                    {hasMoreMedia && (
-                      <button
-                        onClick={loadMoreMedia}
-                        disabled={mediaLoading}
-                        className="w-full py-2 text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors disabled:opacity-50"
-                      >
-                        {mediaLoading ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Loading...
-                          </div>
-                        ) : (
-                          'Load More Media'
-                        )}
-                      </button>
                     )}
 
                     {/* Empty State */}
-                    {sharedMedia.images.length === 0 && sharedMedia.files.length === 0 && sharedMedia.links.length === 0 && (
+                    {sharedMedia.images.length === 0 && sharedMedia.files.length === 0 && (
                       <div className="text-center py-8">
                         <Image className="w-12 h-12 text-gray-500 mx-auto mb-3" />
                         <p className="text-gray-400">No shared media found</p>

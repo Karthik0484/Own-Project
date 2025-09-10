@@ -410,4 +410,56 @@ router.post("/:id/report", verifyToken, async (req, res) => {
   }
 });
 
+// Unified media metadata per PRD: GET /users/:id/media
+router.get("/:id/media", verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUserId = req.userId;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid user ID format' });
+    }
+
+    // Find messages with files between the two users (DM context)
+    const messages = await Message.find({
+      $or: [
+        { sender: id, recipient: currentUserId },
+        { sender: currentUserId, recipient: id }
+      ],
+      fileUrl: { $exists: true, $ne: null }
+    }).sort({ timestamp: -1 });
+
+    const base = process.env.ORIGIN || 'http://localhost:3001';
+    const inferTypeFromUrl = (url) => {
+      const lower = (url || '').toLowerCase();
+      const ext = lower.split('.').pop() || '';
+      const imageExt = ['png','jpg','jpeg','gif','webp','bmp'];
+      const videoExt = ['mp4','mov','avi','mkv','webm','wmv'];
+      if (imageExt.includes(ext)) return 'image';
+      if (videoExt.includes(ext)) return 'video';
+      return 'file';
+    };
+
+    const media = messages.map((m) => {
+      const type = inferTypeFromUrl(m.fileUrl);
+      const url = `${base}/${m.fileUrl}`;
+      const nameFromPath = (m.fileUrl || '').split('/').pop();
+      return {
+        id: m._id,
+        type,
+        url,
+        thumbnailUrl: url, // fallback to original url if no thumbnail generated
+        uploadedAt: m.timestamp,
+        size: m.fileSize || null,
+        name: (m.content && m.content.trim()) || nameFromPath || `File-${m._id}`,
+      };
+    });
+
+    return res.json({ success: true, media });
+  } catch (e) {
+    console.error('Error fetching media:', e);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
 export default router;
