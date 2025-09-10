@@ -6,6 +6,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@radix-ui/react-avatar';
 import { toast } from "sonner";
 import { useSocket } from "@/context/SocketContext";
 import { apiClient } from "@/lib/api-client";
+import { useNavigate } from "react-router-dom";
 import { 
   Bell, 
   BellOff, 
@@ -18,12 +19,23 @@ import {
   Calendar,
   MessageCircle,
   MoreHorizontal,
-  Loader2
+  Loader2,
+  X,
+  Play,
+  Maximize2,
+  Minimize2,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  File,
+  Video
 } from 'lucide-react';
+import './user-info-drawer.css';
 
 const UserInfoDrawer = ({ open, onClose }) => {
   const { selectedChatData, userInfo, onlineUsers, setSelectedChatData, setSelectedChatType } = useAppStore();
   const socket = useSocket();
+  const navigate = useNavigate();
   
   // State management
   const [userDetails, setUserDetails] = useState(null);
@@ -41,6 +53,18 @@ const UserInfoDrawer = ({ open, onClose }) => {
   const [mutualLoading, setMutualLoading] = useState(false);
   const [mediaPage, setMediaPage] = useState(1);
   const [hasMoreMedia, setHasMoreMedia] = useState(true);
+  
+  // Media preview state
+  const [mediaPreview, setMediaPreview] = useState({
+    isOpen: false,
+    currentIndex: 0,
+    media: [],
+    type: 'image' // 'image', 'video', 'file'
+  });
+  
+  // Responsive state
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
 
   const isOnline = selectedChatData?._id && onlineUsers?.[selectedChatData._id];
   const lastSeen = selectedChatData?.lastSeen;
@@ -178,7 +202,6 @@ const UserInfoDrawer = ({ open, onClose }) => {
         setIsMuted(response.data.isMuted);
       }
     } catch (error) {
-      console.error('Error fetching mute status:', error);
       // Default to unmuted if there's an error
       setIsMuted(false);
     }
@@ -373,55 +396,230 @@ const UserInfoDrawer = ({ open, onClose }) => {
     });
   };
 
+  // Enhanced responsive detection with better breakpoints
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const width = window.innerWidth;
+      setIsMobile(width < 768); // Updated to standard mobile breakpoint
+      setIsTablet(width >= 768 && width < 1024); // Updated tablet range
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
+  // Media preview functions
+  const openMediaPreview = (media, index, type) => {
+    setMediaPreview({
+      isOpen: true,
+      currentIndex: index,
+      media: media,
+      type: type
+    });
+  };
+
+  const closeMediaPreview = () => {
+    setMediaPreview({
+      isOpen: false,
+      currentIndex: 0,
+      media: [],
+      type: 'image'
+    });
+  };
+
+  const navigateMedia = (direction) => {
+    const { currentIndex, media } = mediaPreview;
+    const newIndex = direction === 'next' 
+      ? (currentIndex + 1) % media.length
+      : (currentIndex - 1 + media.length) % media.length;
+    
+    setMediaPreview(prev => ({ ...prev, currentIndex: newIndex }));
+  };
+
+  const handleMediaClick = (item, type) => {
+    if (type === 'image') {
+      const allImages = sharedMedia.images;
+      const index = allImages.findIndex(img => img.id === item.id);
+      openMediaPreview(allImages, index, 'image');
+    } else if (type === 'video') {
+      const allVideos = sharedMedia.files.filter(f => f.type === 'video');
+      const index = allVideos.findIndex(vid => vid.id === item.id);
+      openMediaPreview(allVideos, index, 'video');
+    } else {
+      // For files, trigger download
+      handleMediaPreview(item);
+    }
+  };
+
+  // Enhanced media preview with better file type detection
+  const getFileIcon = (fileName, fileType) => {
+    const extension = fileName?.split('.').pop()?.toLowerCase();
+    
+    if (fileType === 'video' || ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'].includes(extension)) {
+      return <Video className="w-5 h-5 text-blue-400" />;
+    } else if (['pdf'].includes(extension)) {
+      return <FileText className="w-5 h-5 text-red-400" />;
+    } else if (['doc', 'docx'].includes(extension)) {
+      return <FileText className="w-5 h-5 text-blue-400" />;
+    } else if (['xls', 'xlsx'].includes(extension)) {
+      return <FileText className="w-5 h-5 text-green-400" />;
+    } else if (['ppt', 'pptx'].includes(extension)) {
+      return <FileText className="w-5 h-5 text-orange-400" />;
+    } else if (['zip', 'rar', '7z'].includes(extension)) {
+      return <File className="w-5 h-5 text-purple-400" />;
+    } else {
+      return <File className="w-5 h-5 text-gray-400" />;
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return 'Unknown size';
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  // Enhanced channel navigation with proper routing
+  const handleChannelNavigation = async (channel) => {
+    try {
+      // Check if user has access to the channel
+      const response = await apiClient.get(`/api/channels/${channel.id || channel._id}/access`, {
+        withCredentials: true
+      });
+
+      if (response.data?.success) {
+        // Set the channel data and type
+        setSelectedChatData(channel);
+        setSelectedChatType('channel');
+        
+        // Navigate to the channel using React Router
+        navigate(`/chat/${channel.id || channel._id}`);
+        
+        // Close the drawer
+        onClose();
+        
+        toast.success(`Switched to ${channel.name}`);
+      } else {
+        toast.error("You don't have access to this channel");
+      }
+    } catch (error) {
+      if (error.response?.status === 403) {
+        toast.error("You don't have access to this channel");
+      } else if (error.response?.status === 404) {
+        toast.error("Channel not found");
+      } else {
+        toast.error("Failed to access channel. Please try again.");
+      }
+    }
+  };
+
+  // Keyboard navigation for media preview
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!mediaPreview.isOpen) return;
+
+      switch (e.key) {
+        case 'Escape':
+          closeMediaPreview();
+          break;
+        case 'ArrowLeft':
+          if (mediaPreview.media.length > 1) {
+            navigateMedia('prev');
+          }
+          break;
+        case 'ArrowRight':
+          if (mediaPreview.media.length > 1) {
+            navigateMedia('next');
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    if (mediaPreview.isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [mediaPreview.isOpen, mediaPreview.media.length]);
+
   if (!open) return null;
 
+  // Enhanced responsive width classes with better breakpoints
+  const getResponsiveWidth = () => {
+    if (isMobile) return 'w-full sm:w-[90%]';
+    if (isTablet) return 'w-[45%] md:w-[40%]';
+    return 'w-[35%] lg:w-[30%]';
+  };
+
   return (
-    <div 
-      className={`${open ? 'translate-x-0' : 'translate-x-full'} fixed right-0 top-0 h-screen w-full md:w-[420px] bg-[#11121a] border-l border-[#2f303b] z-50 transition-transform duration-200`}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <>
+      {/* Backdrop for mobile */}
+      {isMobile && open && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={onClose}
+        />
+      )}
+      
+      <div 
+        className={`${open ? 'translate-x-0' : 'translate-x-full'} fixed right-0 top-0 h-screen ${getResponsiveWidth()} bg-[#11121a] border-l border-[#2f303b] z-50 transition-transform duration-200`}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="user-info-title"
+      >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-[#2f303b]">
-        <h2 className="text-xl font-semibold text-white">User Info</h2>
+        <h2 id="user-info-title" className="text-xl font-semibold text-white">User Info</h2>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-white transition-colors duration-200"
+          className="text-gray-400 hover:text-white transition-colors duration-200 p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+          aria-label="Close user info panel"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <X className="w-6 h-6" />
         </button>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex border-b border-[#2f303b]">
+      <div className="flex border-b border-[#2f303b]" role="tablist">
         <button
           onClick={() => setActiveTab('profile')}
-          className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
+          className={`flex-1 py-3 px-4 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 ${
             activeTab === 'profile' 
               ? 'text-purple-400 border-b-2 border-purple-400' 
               : 'text-gray-400 hover:text-gray-300'
           }`}
+          role="tab"
+          aria-selected={activeTab === 'profile'}
+          aria-controls="profile-panel"
         >
           Profile
         </button>
         <button
           onClick={() => setActiveTab('media')}
-          className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
+          className={`flex-1 py-3 px-4 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 ${
             activeTab === 'media' 
               ? 'text-purple-400 border-b-2 border-purple-400' 
               : 'text-gray-400 hover:text-gray-300'
           }`}
+          role="tab"
+          aria-selected={activeTab === 'media'}
+          aria-controls="media-panel"
         >
           Media
         </button>
         <button
           onClick={() => setActiveTab('mutual')}
-          className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
+          className={`flex-1 py-3 px-4 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 ${
             activeTab === 'mutual' 
               ? 'text-purple-400 border-b-2 border-purple-400' 
               : 'text-gray-400 hover:text-gray-300'
           }`}
+          role="tab"
+          aria-selected={activeTab === 'mutual'}
+          aria-controls="mutual-panel"
         >
           Mutual
         </button>
@@ -439,7 +637,7 @@ const UserInfoDrawer = ({ open, onClose }) => {
             {/* Profile Tab */}
             {activeTab === 'profile' && (
               userDetails ? (
-              <div className="p-6 space-y-6">
+              <div id="profile-panel" className="p-6 space-y-6" role="tabpanel" aria-labelledby="profile-tab">
                 {/* Profile Section */}
                 <div className="text-center space-y-4">
                   <div className="relative inline-block">
@@ -484,7 +682,7 @@ const UserInfoDrawer = ({ open, onClose }) => {
                         </span>
                       ) : (
                         <span className="text-gray-400 text-sm">
-                          Last seen {lastSeenText}
+                          {lastSeenText}
                         </span>
                       )}
                     </div>
@@ -683,7 +881,7 @@ const UserInfoDrawer = ({ open, onClose }) => {
 
             {/* Media Tab */}
             {activeTab === 'media' && (
-              <div className="p-6 space-y-6">
+              <div id="media-panel" className="p-6 space-y-6" role="tabpanel" aria-labelledby="media-tab">
                 <h3 className="text-lg font-semibold text-white">Shared Media & Files</h3>
                 
                 {mediaLoading && sharedMedia.images.length === 0 && sharedMedia.files.length === 0 && sharedMedia.links.length === 0 ? (
@@ -699,21 +897,32 @@ const UserInfoDrawer = ({ open, onClose }) => {
                           <Image className="w-4 h-4" />
                           Images ({sharedMedia.images.length})
                         </h4>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : isTablet ? 'grid-cols-3' : 'grid-cols-4'}`}>
                           {sharedMedia.images.map((image) => (
-                            <div key={image.id} className="relative group cursor-pointer">
+                            <div 
+                              key={image.id} 
+                              className="relative group cursor-pointer"
+                              onClick={() => handleMediaClick(image, 'image')}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  handleMediaClick(image, 'image');
+                                }
+                              }}
+                              aria-label={`View image ${image.name}`}
+                            >
                               <img 
                                 src={image.url} 
                                 alt={image.name}
                                 className="w-full h-24 object-cover rounded-lg"
+                                loading="lazy"
                               />
                               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center">
-                                <button 
-                                  onClick={() => handleMediaPreview(image)}
-                                  className="opacity-0 group-hover:opacity-100 bg-white bg-opacity-20 p-2 rounded-full"
-                                >
+                                <div className="opacity-0 group-hover:opacity-100 bg-white bg-opacity-20 p-2 rounded-full">
                                   <Eye className="w-4 h-4 text-white" />
-                                </button>
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -730,20 +939,38 @@ const UserInfoDrawer = ({ open, onClose }) => {
                         </h4>
                         <div className="space-y-2">
                           {sharedMedia.files.map((file) => (
-                            <div key={file.id} className="flex items-center justify-between bg-[#1a1b23] p-3 rounded-lg">
+                            <div 
+                              key={file.id} 
+                              className="flex items-center justify-between bg-[#1a1b23] p-3 rounded-lg hover:bg-[#25262e] transition-colors cursor-pointer"
+                              onClick={() => handleMediaClick(file, file.type === 'video' ? 'video' : 'file')}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  handleMediaClick(file, file.type === 'video' ? 'video' : 'file');
+                                }
+                              }}
+                              aria-label={`${file.type === 'video' ? 'Play' : 'Download'} ${file.name}`}
+                            >
                               <div className="flex items-center gap-3">
-                                <FileText className="w-5 h-5 text-gray-400" />
+                                {file.type === 'video' ? (
+                                  <Play className="w-5 h-5 text-gray-400" />
+                                ) : (
+                                  <FileText className="w-5 h-5 text-gray-400" />
+                                )}
                                 <div>
                                   <p className="text-white text-sm">{file.name}</p>
                                   <p className="text-gray-400 text-xs">{file.size} • {file.date}</p>
                                 </div>
                               </div>
-                              <button 
-                                onClick={() => handleMediaPreview(file)}
-                                className="text-gray-400 hover:text-white"
-                              >
-                                <Download className="w-4 h-4" />
-                              </button>
+                              <div className="text-gray-400 hover:text-white">
+                                {file.type === 'video' ? (
+                                  <Play className="w-4 h-4" />
+                                ) : (
+                                  <Download className="w-4 h-4" />
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -806,7 +1033,7 @@ const UserInfoDrawer = ({ open, onClose }) => {
 
             {/* Mutual Tab */}
             {activeTab === 'mutual' && (
-              <div className="p-6 space-y-6">
+              <div id="mutual-panel" className="p-6 space-y-6" role="tabpanel" aria-labelledby="mutual-tab">
                 <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                   <Users className="w-5 h-5" />
                   Mutual Groups & Channels
@@ -822,8 +1049,17 @@ const UserInfoDrawer = ({ open, onClose }) => {
                       {(showAllMutual ? mutualChannels : mutualChannels.slice(0, 3)).map((channel) => (
                         <div 
                           key={channel.id}
-                          onClick={() => handleChannelClick(channel)}
-                          className="flex items-center justify-between bg-[#1a1b23] p-4 rounded-lg cursor-pointer hover:bg-[#25262e] transition-colors duration-200"
+                          onClick={() => handleChannelNavigation(channel)}
+                          className="flex items-center justify-between bg-[#1a1b23] p-4 rounded-lg cursor-pointer hover:bg-[#25262e] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleChannelNavigation(channel);
+                            }
+                          }}
+                          aria-label={`Navigate to ${channel.name} channel`}
                         >
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
@@ -835,7 +1071,6 @@ const UserInfoDrawer = ({ open, onClose }) => {
                               <p className="text-white font-medium">{channel.name}</p>
                               <p className="text-gray-400 text-sm">{channel.members} members</p>
                             </div>
-
                           </div>
                           <MessageCircle className="w-4 h-4 text-gray-400" />
                         </div>
@@ -865,7 +1100,78 @@ const UserInfoDrawer = ({ open, onClose }) => {
         )}
       </div>
     </div>
+
+    {/* Media Preview Modal */}
+    {mediaPreview.isOpen && (
+      <div className="fixed inset-0 bg-black bg-opacity-90 z-[60] flex items-center justify-center p-4">
+        <div className="relative max-w-4xl max-h-full w-full h-full flex items-center justify-center">
+          {/* Close Button */}
+          <button
+            onClick={closeMediaPreview}
+            className="absolute top-4 right-4 z-10 text-white hover:text-gray-300 transition-colors p-2 rounded-full bg-black bg-opacity-50"
+            aria-label="Close media preview"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {/* Navigation Buttons */}
+          {mediaPreview.media.length > 1 && (
+            <>
+              <button
+                onClick={() => navigateMedia('prev')}
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 text-white hover:text-gray-300 transition-colors p-2 rounded-full bg-black bg-opacity-50"
+                aria-label="Previous media"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={() => navigateMedia('next')}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 text-white hover:text-gray-300 transition-colors p-2 rounded-full bg-black bg-opacity-50"
+                aria-label="Next media"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </>
+          )}
+
+          {/* Media Content */}
+          <div className="flex items-center justify-center w-full h-full">
+            {mediaPreview.type === 'image' && (
+              <img
+                src={mediaPreview.media[mediaPreview.currentIndex]?.url}
+                alt={mediaPreview.media[mediaPreview.currentIndex]?.name}
+                className="max-w-full max-h-full object-contain rounded-lg"
+              />
+            )}
+            {mediaPreview.type === 'video' && (
+              <video
+                src={mediaPreview.media[mediaPreview.currentIndex]?.url}
+                controls
+                className="max-w-full max-h-full rounded-lg"
+                autoPlay
+              >
+                Your browser does not support the video tag.
+              </video>
+            )}
+          </div>
+
+          {/* Media Info */}
+          <div className="absolute bottom-4 left-4 right-4 text-center">
+            <p className="text-white text-sm bg-black bg-opacity-50 px-3 py-1 rounded-full inline-block">
+              {mediaPreview.media[mediaPreview.currentIndex]?.name}
+            </p>
+            {mediaPreview.media.length > 1 && (
+              <p className="text-gray-300 text-xs mt-1">
+                {mediaPreview.currentIndex + 1} of {mediaPreview.media.length}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 
 export default UserInfoDrawer;
+  
