@@ -21,6 +21,7 @@ import {
   Eraser
 } from 'lucide-react';
 import VoiceChat from './VoiceChat';
+import ParticipantList from './ParticipantList';
 
 const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
   const socket = useSocket();
@@ -54,6 +55,21 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
   const [isDrawingPath, setIsDrawingPath] = useState(false);
   const [pathPoints, setPathPoints] = useState([]);
   const [lastEmittedPoint, setLastEmittedPoint] = useState(null);
+
+  // responsive
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => {
+      const w = window.innerWidth;
+      setIsMobile(w < 768);
+      setIsTablet(w >= 768 && w < 1024);
+    };
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const colors = [
     '#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', 
@@ -226,15 +242,20 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     };
   }, [isOpen, socket, chatId, userInfo.id]);
 
-  // Socket event handlers
+  // Socket event handlers (augment participants regardless of voice)
   const handleUserJoined = useCallback((data) => {
-    setParticipants(data.allParticipants);
+    setParticipants(data.allParticipants.map(p => ({
+      id: p.userId,
+      name: p.userInfo?.name || 'Unknown',
+      micEnabled: true,
+      isSpeaking: false,
+    })));
     setIsAdmin(data.isAdmin);
     toast.info(`✏️ ${data.participant.userInfo.name} joined whiteboard`);
   }, []);
 
   const handleUserLeft = useCallback((data) => {
-    setParticipants(prev => prev.filter(p => p.socketId !== data.socketId));
+    setParticipants(prev => prev.filter(p => p.id && p.id !== data.userId));
     setRemoteCursors(prev => {
       const newCursors = { ...prev };
       delete newCursors[data.userId];
@@ -242,6 +263,23 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
     });
     toast.info('👋 A participant left the whiteboard');
   }, []);
+
+  // voice mute/speaking updates reflected in participants list
+  useEffect(() => {
+    if (!socket) return;
+    const onVoiceSpeaking = ({ isSpeaking }) => {
+      setParticipants(prev => prev.map(p => ({ ...p, isSpeaking })));
+    };
+    const onVoiceUserMuted = ({ userId, isMuted }) => {
+      setParticipants(prev => prev.map(p => p.id === userId ? { ...p, micEnabled: !isMuted } : p));
+    };
+    socket.on('voice:speaking', onVoiceSpeaking);
+    socket.on('voice:user_muted', onVoiceUserMuted);
+    return () => {
+      socket.off('voice:speaking', onVoiceSpeaking);
+      socket.off('voice:user_muted', onVoiceUserMuted);
+    };
+  }, [socket]);
 
   const handleRemoteDraw = useCallback((data) => {
     if (data.userId === userInfo.id) return;
@@ -1156,7 +1194,7 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+        <div className="flex-1 flex flex-col lg:flex-row min-h-0 relative">
           {/* Toolbar - Responsive design */}
           <div className={`bg-gray-100 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ${
             isToolbarCollapsed 
@@ -1478,6 +1516,12 @@ const WhiteboardModal = ({ isOpen, onClose, chatId, chatType, chatName }) => {
               </div>
             </div>
           </div>
+
+          {/* Participants - always visible via responsive component */}
+          <ParticipantList 
+            participants={participants}
+            layout={isMobile ? 'mobile' : isTablet ? 'tablet' : 'desktop'}
+          />
         </div>
       </div>
     </div>
