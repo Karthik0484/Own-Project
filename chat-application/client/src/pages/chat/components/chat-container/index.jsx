@@ -3,11 +3,12 @@ import ChannelInfoDrawer from "./components/channel-info-drawer";
 import UserInfoDrawer from "./components/user-info-drawer";
 import MessageBar from "./components/message-bar";
 import MessageContainer from "./components/message-container";
+import LiveUpdatesCarousel from "@/components/LiveUpdatesCarousel";
 import { useAppStore } from "@/store";
 import { useState } from "react";
 
 const ChatContainer = () => {
-  const { selectedChatType } = useAppStore();
+  const { selectedChatType, selectedChatData } = useAppStore();
   const [showDrawer, setShowDrawer] = useState(false);
   
   const openDrawer = () => setShowDrawer(true);
@@ -21,6 +22,12 @@ const ChatContainer = () => {
       <div onClick={(e) => e.stopPropagation()}>
         <ChatHeader onHeaderClick={openDrawer} />
       </div>
+      {/* Show Live Updates Carousel only for channels */}
+      {isChannel && selectedChatData?._id && (
+        <div className="px-4 pt-2">
+          <LiveUpdatesCarousel groupId={selectedChatData._id} />
+        </div>
+      )}
       <MessageContainer />
       <MessageBar />
       

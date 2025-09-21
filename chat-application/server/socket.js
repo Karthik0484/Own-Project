@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import Message from "./models/MessagesModel.js";
 import User from "./models/UserModel.js";
 import channel from "./models/ChannelModel.js";
+import Updates from "./models/UpdatesModel.js";
 import { sendToUsers } from "./push/fcm.js";
 
 const allowedOrigins = [
@@ -875,6 +876,23 @@ socket.on("whiteboard:shape_drawn", (data) => {
                 }
             }
         });
+
+        // Group/Channel room management
+        socket.on("join-group", (data) => {
+            const { groupId } = data;
+            if (groupId) {
+                socket.join(groupId);
+                console.log(`User ${userId} joined group room ${groupId}`);
+            }
+        });
+
+        socket.on("leave-group", (data) => {
+            const { groupId } = data;
+            if (groupId) {
+                socket.leave(groupId);
+                console.log(`User ${userId} left group room ${groupId}`);
+            }
+        });
     }
   });
 }
@@ -898,4 +916,23 @@ export function emitChannelUpdate({ channelId, description, pictureUrl, name }) 
 export function emitChannelMembersUpdate({ channelId, members }) {
   if (!ioRef) return;
   ioRef.to(String(channelId)).emit("channel:members:update", { channelId, members });
+}
+
+// Live Updates WebSocket events
+export function emitNewUpdate(update) {
+  if (!ioRef) return;
+  // Emit to all members of the specific group
+  ioRef.to(update.groupId.toString()).emit("updates:new", update);
+}
+
+export function emitUpdateUpdated(update) {
+  if (!ioRef) return;
+  // Emit to all members of the specific group
+  ioRef.to(update.groupId.toString()).emit("updates:updated", update);
+}
+
+export function emitUpdateDeleted(updateId, groupId) {
+  if (!ioRef) return;
+  // Emit to all members of the specific group
+  ioRef.to(groupId.toString()).emit("updates:deleted", { updateId });
 }

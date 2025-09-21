@@ -13,6 +13,7 @@ import channelRoutes from "./routes/ChannelRoutes.js";
 import Channel from "./models/ChannelModel.js";
 import pushRoutes from "./routes/push.routes.js";
 import userRoutes from "./routes/UserRoutes.js";
+import updatesRoutes from "./routes/UpdatesRoutes.js";
 import Message from "./models/MessagesModel.js";
 import { verifyToken } from "./middlewares/AuthMiddleware.js";
 import fs from "fs";
@@ -89,6 +90,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/channel", channelRoutes)
 app.use("/api/push", pushRoutes)
 app.use("/api/users", userRoutes)
+app.use("/api/updates", updatesRoutes)
 
 // PRD: File download endpoint - GET /api/media/:fileId/download
 app.get("/api/media/:fileId/download", verifyToken, async (req, res) => {

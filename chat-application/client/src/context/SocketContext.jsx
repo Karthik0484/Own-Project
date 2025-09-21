@@ -152,7 +152,7 @@ export const SocketProvider = ({ children }) => {
 
             // Join channel room on channel selection
             if (selectedChatType === 'channel' && selectedChatData?._id) {
-                newSocket.emit('join-channel', selectedChatData._id);
+                newSocket.emit('join-group', { groupId: selectedChatData._id });
             }
 
             setSocket(newSocket);
